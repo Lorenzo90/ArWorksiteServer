@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cantieri · ARworksite</title>
+<style>
+  :root{--bg:#f6f5f2;--card:#fff;--ink:#1f2328;--muted:#6b7078;--line:#e3e1dc;--accent:#d9661f;--accent-ink:#fff;--ok:#2f7d4f;--err:#b3261e;--soft:#fff6ef;--chip:#f1efea}
+  @media (prefers-color-scheme:dark){:root{--bg:#16181b;--card:#1f2226;--ink:#e8e6e3;--muted:#9aa0a6;--line:#33373c;--accent:#f08a3e;--accent-ink:#1a1a1a;--ok:#6cc58f;--err:#ff8a80;--soft:#2a2420;--chip:#2a2d31}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+  header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  h1{font-size:22px;margin:0} h1 span{color:var(--accent)}
+  header small{color:var(--muted)}
+  nav{margin-left:auto;display:flex;gap:4px}
+  nav a{color:var(--muted);text-decoration:none;padding:6px 12px;border-radius:8px;font-weight:600}
+  nav a:hover{background:var(--card)}
+  nav form{margin:0}
+  nav .esci{background:transparent;color:var(--muted);font-weight:600;padding:6px 12px;border:0;border-radius:8px;cursor:pointer;font:inherit;font-weight:600}
+  nav .esci:hover{background:var(--card);color:var(--ink)}
+  nav .utente{color:var(--muted);font-size:13px;align-self:center;padding:0 4px 0 10px;border-left:1px solid var(--line)}
+  nav a.att{background:var(--card);color:var(--accent);border:1px solid var(--line)}
+  section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+  h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  h2 .n{font-size:12px;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
+  form.riga{display:flex;gap:12px;flex-wrap:wrap;align-items:end}
+  label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+  input,select{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+  label.largo{flex:1;min-width:220px}
+  button{font:inherit;font-weight:600;padding:9px 18px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+  button:disabled{opacity:.45;cursor:default}
+  button.elimina{background:transparent;color:var(--muted);padding:6px 10px;border:1px solid transparent}
+  button.elimina:hover{color:var(--err);border-color:var(--line)}
+  button.secondario{background:transparent;color:var(--accent);border:1px solid var(--line);padding:6px 10px;white-space:nowrap}
+  button.secondario:hover{border-color:var(--accent)}
+  .msg{margin-top:10px;font-size:14px;min-height:1em}
+  .msg.ok{color:var(--ok)} .msg.err{color:var(--err)}
+  .vuoto{color:var(--muted);text-align:center;padding:18px}
+
+  /* cantieri */
+  .cantiere{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+  .cantiere.nuovo{animation:evid 1.6s ease-out}
+  @keyframes evid{from{background:var(--soft)}to{background:transparent}}
+  .cantiere-testa{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .cantiere-testa h3{margin:0;font-size:16px}
+  .cantiere-testa .data{color:var(--muted);font-size:13px}
+  .cantiere-testa .elimina{margin-left:auto}
+  .squadra{display:flex;flex-wrap:wrap;gap:8px;margin:12px 0}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:4px 4px 4px 6px;font-size:14px}
+  .chip .sigla{font:700 11px ui-monospace,Consolas,monospace;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 6px;color:var(--muted)}
+  .chip.dl{background:var(--soft);border-color:var(--accent)}
+  .chip.dl .sigla{color:var(--accent);border-color:var(--accent)}
+  .chip button{background:transparent;color:var(--muted);padding:0 6px;font-size:16px;line-height:1;border-radius:10px}
+  .chip button:hover{color:var(--err)}
+  .avviso{font-size:13px;color:var(--err)}
+  .aggiungi{display:flex;gap:8px;flex-wrap:wrap}
+  .aggiungi select{min-width:260px}
+
+  /* persone */
+  .tab{width:100%;border-collapse:collapse;font-size:14px;margin-top:6px}
+  .tab th,.tab td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .tab th{color:var(--muted);font-weight:600;font-size:12px;text-transform:uppercase;letter-spacing:.04em}
+  .tab td.nome{font-weight:600}
+  .tab td.num{color:var(--muted)}
+  .tab td.utente{font-family:ui-monospace,Consolas,monospace;font-size:13px;color:var(--muted)}
+  .tab td.az{text-align:right;white-space:nowrap;width:1%}
+  .tab select{padding:5px 8px;max-width:230px}
+  .cred{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--soft);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;margin:12px 0}
+  .cred b{display:block;font-size:12px;color:var(--muted);font-weight:600}
+  .cred code{font:600 16px ui-monospace,Consolas,monospace;user-select:all}
+  .cred p{flex-basis:100%;margin:0;font-size:13px;color:var(--muted)}
+  .cred .chiudi{margin-left:auto}
+  .cred[hidden]{display:none}
+  @media (max-width:640px){
+    label.largo,label{width:100%} form.riga button{width:100%}
+    .aggiungi select{min-width:0;flex:1}
+    .tab .utente,.tab .num{display:none} .tab select{max-width:140px}
+  }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>AR<span>worksite</span> Server</h1>
+    <small id="ver"></small>
+    <nav><a href="/">Piante</a><a href="/cantieri" class="att">Cantieri</a><a href="/attivita">Attività</a><a href="/docs">API</a><span class="utente" id="utente"></span><form method="post" action="/logout"><button class="esci" type="submit">Esci</button></form></nav>
+  </header>
+
+  <section id="sez-chiave" hidden>
+    <h2>Chiave di accesso</h2>
+    <label>Chiave API (X-Api-Key)<input type="password" id="chiave" autocomplete="off"></label>
+  </section>
+
+  <section>
+    <h2>Nuovo cantiere</h2>
+    <form class="riga" id="form-cantiere">
+      <label class="largo">Nome del cantiere<input id="nome-cantiere" maxlength="120" placeholder="es. Condominio Via Verdi" required></label>
+      <label>Direttore dei lavori<select id="dl-nuovo"></select></label>
+      <button type="submit">Crea cantiere</button>
+    </form>
+    <div class="msg" id="msg-cantiere"></div>
+  </section>
+
+  <section>
+    <h2>Cantieri <span class="n" id="n-cantieri">0</span></h2>
+    <div id="cantieri"><p class="vuoto">Caricamento…</p></div>
+    <div class="msg" id="msg-elenco"></div>
+  </section>
+
+  <section>
+    <h2>Persone <span class="n" id="n-persone">0</span></h2>
+    <form class="riga" id="form-persona">
+      <label>Nome<input id="p-nome" maxlength="60" required></label>
+      <label>Cognome<input id="p-cognome" maxlength="60" required></label>
+      <label>Ruolo<select id="p-ruolo"></select></label>
+      <button type="submit">Aggiungi persona</button>
+    </form>
+    <div class="msg" id="msg-persona"></div>
+    <div class="cred" id="cred" hidden>
+      <div><b>Persona</b><span id="cred-nome"></span></div>
+      <div><b>Utente</b><code id="cred-utente"></code></div>
+      <div><b>Password</b><code id="cred-password"></code></div>
+      <button type="button" class="secondario" id="cred-copia">Copia</button>
+      <button type="button" class="elimina chiudi" id="cred-chiudi">Chiudi</button>
+      <p>Annotala adesso: il server non la salva in chiaro e non potrà mostrarla di nuovo.</p>
+    </div>
+    <table class="tab">
+      <thead><tr><th>Persona</th><th class="utente">Utente</th><th>Ruolo</th><th class="num">Cantieri</th><th></th></tr></thead>
+      <tbody id="persone"></tbody>
+    </table>
+  </section>
+</main>
+
+<script>
+const CFG = /*IMPOSTAZIONI*/{};
+const $ = id => document.getElementById(id);
+const DL = "DL", DL_PREDEFINITO = "Mario Rossi";
+let ruoli = [], persone = [], cantieri = [], ultimoCreato = null;
+
+$("ver").textContent = "v" + CFG.versione;
+$("utente").textContent = CFG.utente || "";
+const alLogin = () => { location.href = "/login?dopo=/cantieri"; };
+if (CFG.chiave) {
+  $("sez-chiave").hidden = false;
+  try { $("chiave").value = localStorage.getItem("arws-chiave") || ""; } catch (e) {}
+  $("chiave").addEventListener("change", () => {
+    try { localStorage.setItem("arws-chiave", $("chiave").value); } catch (e) {}
+    ricarica();
+  });
+}
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const msg = (id, testo, tipo) => { $(id).textContent = testo || ""; $(id).className = "msg " + (tipo || ""); };
+const nomeCompleto = p => p.nome + " " + p.cognome;
+const nomeRuolo = sigla => (ruoli.find(r => r.sigla === sigla) || {}).nome || sigla;
+
+async function api(metodo, percorso, corpo) {
+  const h = { "Content-Type": "application/json" };
+  if (CFG.chiave) h["X-Api-Key"] = $("chiave").value;
+  const r = await fetch(percorso, { method: metodo, headers: h, body: corpo ? JSON.stringify(corpo) : undefined });
+  if (r.status === 204) return null;
+  const d = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const det = typeof d.detail === "string" ? d.detail
+              : Array.isArray(d.detail) ? "Dati non validi: " + d.detail.map(e => e.loc.at(-1)).join(", ")
+              : "Errore " + r.status;
+    if (r.status === 401) { alLogin(); throw new Error("Sessione scaduta: rifai l'accesso"); }
+    throw new Error(det);
+  }
+  return d;
+}
+
+const opzioniRuoli = selezionato => ruoli.map(r =>
+  `<option value="${r.sigla}" title="${esc(r.descrizione)}" ${r.sigla === selezionato ? "selected" : ""}>${r.sigla} · ${esc(r.nome)}</option>`).join("");
+
+function disegnaNuovoCantiere() {
+  const dl = persone.filter(p => p.ruolo === DL);
+  const prima = Number($("dl-nuovo").value);
+  const mario = dl.find(p => nomeCompleto(p).toLowerCase() === DL_PREDEFINITO.toLowerCase());
+  const scelto = dl.some(p => p.id === prima) ? prima : (mario || dl[0] || {}).id;
+  $("dl-nuovo").innerHTML = dl.length
+    ? dl.map(p => `<option value="${p.id}" ${p.id === scelto ? "selected" : ""}>${esc(nomeCompleto(p))}</option>`).join("")
+    : `<option value="">Nessuna persona con ruolo DL</option>`;
+}
+
+function disegnaCantieri() {
+  $("n-cantieri").textContent = cantieri.length;
+  if (!cantieri.length) { $("cantieri").innerHTML = `<p class="vuoto">Nessun cantiere. Creane uno qui sopra.</p>`; return; }
+  $("cantieri").innerHTML = cantieri.map(c => {
+    const dentro = new Set(c.squadra.map(m => m.id));
+    // Persone non ancora in squadra, raggruppate per ruolo nell'ordine del file Excel.
+    const gruppi = ruoli.map(r => {
+      const ps = persone.filter(p => p.ruolo === r.sigla && !dentro.has(p.id));
+      return ps.length ? `<optgroup label="${r.sigla} · ${esc(r.nome)}">${ps.map(p =>
+        `<option value="${p.id}">${esc(nomeCompleto(p))}</option>`).join("")}</optgroup>` : "";
+    }).join("");
+    return `<div class="cantiere ${c.id === ultimoCreato ? "nuovo" : ""}" data-cantiere="${c.id}">
+      <div class="cantiere-testa">
+        <h3>${esc(c.nome)}</h3>
+        <span class="data">creato il ${new Date(c.creato).toLocaleDateString("it-IT")}</span>
+        <button class="elimina" data-elimina-cantiere="${c.id}">Elimina cantiere</button>
+      </div>
+      <div class="squadra">
+        ${c.squadra.map(m => `<span class="chip ${m.ruolo === DL ? "dl" : ""}" title="${esc(m.ruolo_nome)}">
+          <span class="sigla">${esc(m.ruolo)}</span>${esc(nomeCompleto(m))}
+          <button data-togli="${m.id}" aria-label="Togli ${esc(nomeCompleto(m))} dalla squadra">×</button></span>`).join("")}
+        ${c.direttore_lavori ? "" : `<span class="avviso">Manca il Direttore dei lavori</span>`}
+      </div>
+      <div class="aggiungi">
+        <select data-scelta="${c.id}" aria-label="Persona da aggiungere a ${esc(c.nome)}">
+          <option value="">Aggiungi alla squadra…</option>${gruppi}
+        </select>
+        <button class="secondario" data-aggiungi="${c.id}">Aggiungi</button>
+      </div>
+    </div>`;
+  }).join("");
+  ultimoCreato = null;
+}
+
+function disegnaPersone() {
+  $("n-persone").textContent = persone.length;
+  const sel = $("p-ruolo").value || "CC";
+  $("p-ruolo").innerHTML = opzioniRuoli(sel);
+  $("persone").innerHTML = persone.length ? persone.map(p => `<tr>
+      <td class="nome">${esc(nomeCompleto(p))}</td>
+      <td class="utente">${esc(p.username)}</td>
+      <td><select data-ruolo="${p.id}" aria-label="Ruolo di ${esc(nomeCompleto(p))}">${opzioniRuoli(p.ruolo)}</select></td>
+      <td class="num">${p.cantieri}</td>
+      <td class="az"><button class="secondario" data-password="${p.id}">Nuova password</button>
+        <button class="elimina" data-persona="${p.id}">Elimina</button></td>
+    </tr>`).join("") : `<tr><td colspan="5" class="vuoto">Nessuna persona.</td></tr>`;
+}
+
+async function ricarica() {
+  try {
+    [ruoli, persone, cantieri] = await Promise.all([api("GET", "/api/ruoli"), api("GET", "/api/persone"), api("GET", "/api/cantieri")]);
+    disegnaNuovoCantiere(); disegnaPersone(); disegnaCantieri();
+  } catch (e) {
+    $("cantieri").innerHTML = `<p class="vuoto">${esc(e.message)}</p>`;
+  }
+}
+
+// --- Cantieri ---
+$("form-cantiere").addEventListener("submit", async e => {
+  e.preventDefault();
+  const nome = $("nome-cantiere").value.trim();
+  if (!nome) return;
+  try {
+    const c = await api("POST", "/api/cantieri", { nome, direttore_lavori_id: Number($("dl-nuovo").value) || null });
+    ultimoCreato = c.id;
+    $("nome-cantiere").value = "";
+    msg("msg-cantiere", `Cantiere «${c.nome}» creato con Direttore dei lavori ${c.direttore_lavori ? nomeCompleto(c.direttore_lavori) : "—"}.`, "ok");
+    ricarica();
+  } catch (err) { msg("msg-cantiere", err.message, "err"); }
+});
+
+$("cantieri").addEventListener("click", async e => {
+  const box = e.target.closest("[data-cantiere]");
+  if (!box) return;
+  const c = cantieri.find(x => x.id === Number(box.dataset.cantiere));
+  try {
+    if (e.target.closest("[data-elimina-cantiere]")) {
+      if (!confirm(`Eliminare il cantiere «${c.nome}» e la sua squadra?\nLe piante già caricate restano sul server.`)) return;
+      await api("DELETE", `/api/cantieri/${c.id}`);
+      msg("msg-elenco", `Cantiere «${c.nome}» eliminato.`, "ok");
+    } else if (e.target.closest("[data-togli]")) {
+      const m = c.squadra.find(x => x.id === Number(e.target.closest("[data-togli]").dataset.togli));
+      await api("DELETE", `/api/cantieri/${c.id}/squadra/${m.id}`);
+      msg("msg-elenco", `${nomeCompleto(m)} tolto dalla squadra di «${c.nome}».`, "ok");
+    } else if (e.target.closest("[data-aggiungi]")) {
+      const pid = Number(box.querySelector("[data-scelta]").value);
+      if (!pid) return;
+      await api("POST", `/api/cantieri/${c.id}/squadra`, { persona_id: pid });
+      const p = persone.find(x => x.id === pid);
+      msg("msg-elenco", `${nomeCompleto(p)} (${nomeRuolo(p.ruolo)}) aggiunto a «${c.nome}».`, "ok");
+    } else return;
+    ricarica();
+  } catch (err) { msg("msg-elenco", err.message, "err"); }
+});
+
+// --- Persone ---
+$("form-persona").addEventListener("submit", async e => {
+  e.preventDefault();
+  try {
+    const p = await api("POST", "/api/persone", { nome: $("p-nome").value, cognome: $("p-cognome").value, ruolo: $("p-ruolo").value });
+    $("p-nome").value = ""; $("p-cognome").value = "";
+    msg("msg-persona", `${nomeCompleto(p)} aggiunto come ${p.ruolo_nome}.`, "ok");
+    mostraCredenziali(nomeCompleto(p), p.username, p.password);
+    ricarica();
+  } catch (err) { msg("msg-persona", err.message, "err"); }
+});
+
+$("persone").addEventListener("change", async e => {
+  const sel = e.target.closest("select[data-ruolo]");
+  if (!sel) return;
+  try {
+    const p = await api("PATCH", `/api/persone/${sel.dataset.ruolo}`, { ruolo: sel.value });
+    msg("msg-persona", `${nomeCompleto(p)} ora è ${p.ruolo_nome}.`, "ok");
+  } catch (err) { msg("msg-persona", err.message, "err"); }
+  ricarica();
+});
+
+function mostraCredenziali(nome, utente, password) {
+  $("cred-nome").textContent = nome;
+  $("cred-utente").textContent = utente;
+  $("cred-password").textContent = password;
+  $("cred-copia").textContent = "Copia";
+  $("cred").hidden = false;
+}
+$("cred-chiudi").addEventListener("click", () => { $("cred").hidden = true; $("cred-password").textContent = ""; });
+$("cred-copia").addEventListener("click", async () => {
+  const testo = `Utente: ${$("cred-utente").textContent}\nPassword: ${$("cred-password").textContent}`;
+  try { await navigator.clipboard.writeText(testo); $("cred-copia").textContent = "Copiato"; }
+  catch (e) { $("cred-copia").textContent = "Seleziona e copia a mano"; }
+});
+
+$("persone").addEventListener("click", async e => {
+  const bp = e.target.closest("button[data-password]");
+  if (bp) {
+    const p = persone.find(x => x.id === Number(bp.dataset.password));
+    if (!confirm(`Generare una nuova password per ${nomeCompleto(p)}?\nQuella attuale smetterà di funzionare e l'app dovrà rifare il login.`)) return;
+    try {
+      const r = await api("POST", `/api/persone/${p.id}/password`);
+      msg("msg-persona", "");
+      mostraCredenziali(nomeCompleto(p), r.username, r.password);
+    } catch (err) { msg("msg-persona", err.message, "err"); }
+    return;
+  }
+  const b = e.target.closest("button[data-persona]");
+  if (!b) return;
+  const p = persone.find(x => x.id === Number(b.dataset.persona));
+  const nota = p.cantieri ? `\nVerrà tolto dalla squadra di ${p.cantieri} cantier${p.cantieri === 1 ? "e" : "i"}.` : "";
+  if (!confirm(`Eliminare ${nomeCompleto(p)}?${nota}`)) return;
+  try {
+    await api("DELETE", `/api/persone/${p.id}`);
+    msg("msg-persona", `${nomeCompleto(p)} eliminato.`, "ok");
+    ricarica();
+  } catch (err) { msg("msg-persona", err.message, "err"); }
+});
+
+ricarica();
+</script>
+</body>
+</html>

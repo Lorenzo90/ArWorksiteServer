@@ -1,0 +1,85 @@
+{
+  "fonte": "ARworksite/documentazione/Attivita_e_ruoli_appartamento.xlsx, foglio Ruoli",
+  "ruoli": [
+    {
+      "sigla": "CL",
+      "nome": "Cliente / committente",
+      "descrizione": "Chi compra l'appartamento: sceglie finiture e varianti, riceve la consegna."
+    },
+    {
+      "sigla": "GL",
+      "nome": "Gestione lavori e clienti",
+      "descrizione": "Ufficio tecnico-commerciale: commesse, capitolato, varianti, ordini, rapporti col cliente."
+    },
+    {
+      "sigla": "PR",
+      "nome": "Progettista / architetto",
+      "descrizione": "Progetto architettonico e tavole DWG, aggiornamento as-built."
+    },
+    {
+      "sigla": "DL",
+      "nome": "Direttore dei lavori",
+      "descrizione": "Controlla che l'opera sia eseguita secondo progetto, verifica collaudi e stati di avanzamento."
+    },
+    {
+      "sigla": "CSE",
+      "nome": "Coordinatore sicurezza (CSE)",
+      "descrizione": "Piano di sicurezza, interferenze tra imprese, accessi."
+    },
+    {
+      "sigla": "CC",
+      "nome": "Capocantiere",
+      "descrizione": "Organizza le squadre e la sequenza dei mestieri, controlla i lavori ogni giorno."
+    },
+    {
+      "sigla": "MU",
+      "nome": "Muratore / impresa edile",
+      "descrizione": "Tramezze, assistenze murarie, tracce e chiusure."
+    },
+    {
+      "sigla": "EL",
+      "nome": "Elettricista",
+      "descrizione": "Impianto elettrico, dati, TV, citofono, domotica."
+    },
+    {
+      "sigla": "ID",
+      "nome": "Idraulico",
+      "descrizione": "Adduzione acqua, scarichi, sanitari."
+    },
+    {
+      "sigla": "TT",
+      "nome": "Termotecnico",
+      "descrizione": "Riscaldamento (anche a pavimento), climatizzazione, VMC, generatore di calore."
+    },
+    {
+      "sigla": "CG",
+      "nome": "Cartongessista",
+      "descrizione": "Pareti e controsoffitti in cartongesso, isolamenti, stuccature."
+    },
+    {
+      "sigla": "MS",
+      "nome": "Massettista",
+      "descrizione": "Sottofondi alleggeriti e massetti."
+    },
+    {
+      "sigla": "PO",
+      "nome": "Posatore",
+      "descrizione": "Pavimenti, rivestimenti, impermeabilizzazioni delle zone bagnate."
+    },
+    {
+      "sigla": "SE",
+      "nome": "Serramentista / falegname",
+      "descrizione": "Controtelai, finestre, porte interne, battiscopa."
+    },
+    {
+      "sigla": "PI",
+      "nome": "Pittore / imbianchino",
+      "descrizione": "Rasature di finitura e tinteggiature."
+    },
+    {
+      "sigla": "FO",
+      "nome": "Fornitori",
+      "descrizione": "Materiali, cucine e arredi su misura, consegne in cantiere."
+    }
+  ]
+}

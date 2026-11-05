@@ -1,0 +1,399 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Attività · ARworksite</title>
+<style>
+  :root{--bg:#f6f5f2;--card:#fff;--ink:#1f2328;--muted:#6b7078;--line:#e3e1dc;--accent:#d9661f;--accent-ink:#fff;--ok:#2f7d4f;--err:#b3261e;--soft:#fff6ef;--chip:#f1efea}
+  @media (prefers-color-scheme:dark){:root{--bg:#16181b;--card:#1f2226;--ink:#e8e6e3;--muted:#9aa0a6;--line:#33373c;--accent:#f08a3e;--accent-ink:#1a1a1a;--ok:#6cc58f;--err:#ff8a80;--soft:#2a2420;--chip:#2a2d31}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:980px;margin:0 auto;padding:24px 16px 48px}
+  header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+  h1{font-size:22px;margin:0} h1 span{color:var(--accent)}
+  header small{color:var(--muted)}
+  nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}
+  nav a{color:var(--muted);text-decoration:none;padding:6px 12px;border-radius:8px;font-weight:600}
+  nav a:hover{background:var(--card)}
+  nav form{margin:0}
+  nav .esci{background:transparent;color:var(--muted);padding:6px 12px;border:0;border-radius:8px;cursor:pointer;font:inherit;font-weight:600}
+  nav .esci:hover{background:var(--card);color:var(--ink)}
+  nav .utente{color:var(--muted);font-size:13px;align-self:center;padding:0 4px 0 10px;border-left:1px solid var(--line)}
+  nav a.att{background:var(--card);color:var(--accent);border:1px solid var(--line)}
+  section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+  h2{font-size:16px;margin:0 0 14px;display:flex;align-items:center;gap:8px}
+  h2 .n{font-size:12px;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
+  h2 .destra{margin-left:auto;font-weight:400}
+  label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+  input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+  textarea{min-height:84px;resize:vertical}
+  .griglia{display:grid;grid-template-columns:2fr 1fr;gap:12px}
+  .griglia .tutta{grid-column:1/-1}
+  button{font:inherit;font-weight:600;padding:9px 18px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+  button:disabled{opacity:.45;cursor:default}
+  button.secondario{background:transparent;color:var(--accent);border:1px solid var(--line);padding:6px 12px}
+  button.secondario:hover{border-color:var(--accent)}
+  button.leggero{background:transparent;color:var(--muted);padding:6px 10px;border:1px solid transparent}
+  button.leggero:hover{color:var(--err);border-color:var(--line)}
+  .msg{margin-top:10px;font-size:14px;min-height:1em}
+  .msg.ok{color:var(--ok)} .msg.err{color:var(--err)}
+  .vuoto{color:var(--muted);text-align:center;padding:18px}
+  .sotto-titolo{font-size:13px;color:var(--muted);margin:0 0 6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+  .sotto-titolo button{padding:2px 8px;font-size:12px}
+
+  /* scelta persone */
+  .persone{display:flex;flex-wrap:wrap;gap:6px;max-height:190px;overflow:auto;padding:2px}
+  .persone label{flex-direction:row;align-items:center;gap:6px;background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:4px 10px 4px 6px;color:var(--ink);font-size:14px;cursor:pointer}
+  .persone label:has(input:checked){background:var(--soft);border-color:var(--accent)}
+  .persone input{margin:0;accent-color:var(--accent)}
+  .sigla{font:700 11px ui-monospace,Consolas,monospace;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 6px;color:var(--muted)}
+
+  /* zona file */
+  .drop{border:2px dashed var(--line);border-radius:10px;padding:16px;text-align:center;cursor:pointer;color:var(--muted)}
+  .drop.over,.drop:hover{border-color:var(--accent);background:var(--soft)}
+  .drop b{color:var(--accent)}
+  .scelti{list-style:none;margin:8px 0 0;padding:0;font-size:14px}
+  .scelti li{display:flex;gap:8px;padding:4px 0;border-bottom:1px solid var(--line)}
+  .scelti li span:last-child{margin-left:auto;color:var(--muted);white-space:nowrap}
+  progress{width:100%;height:8px;margin-top:10px;accent-color:var(--accent)}
+  .riga-azioni{display:flex;gap:10px;align-items:center;margin-top:14px;flex-wrap:wrap}
+
+  /* elenco */
+  .attivita{border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:12px}
+  .attivita.nuova{animation:evid 1.6s ease-out}
+  @keyframes evid{from{background:var(--soft)}to{background:transparent}}
+  .testa{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+  .testa h3{margin:0;font-size:16px}
+  .badge{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:1px 7px;color:var(--muted)}
+  .data{color:var(--muted);font-size:13px}
+  .testa .azioni{margin-left:auto;display:flex;gap:4px}
+  .descr{white-space:pre-wrap;margin:8px 0;color:var(--ink)}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:3px 10px 3px 5px;font-size:13px}
+  .nessuno{font-size:13px;color:var(--err)}
+  .allegati{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:8px;margin-top:10px}
+  .all{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:var(--bg);display:flex;flex-direction:column}
+  .all .vista{height:92px;display:grid;place-items:center;background:var(--chip);cursor:pointer;border:0;padding:0;width:100%;border-radius:0;color:var(--muted)}
+  .all img{width:100%;height:92px;object-fit:cover;display:block}
+  .all .icona{font:700 13px ui-monospace,Consolas,monospace;color:var(--accent)}
+  .all .nome{font-size:12px;padding:5px 7px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .all .nome small{display:block;color:var(--muted)}
+  .all .togli{position:absolute;top:4px;right:4px;background:rgba(0,0,0,.55);color:#fff;border-radius:12px;padding:0 7px;font-size:15px;line-height:22px}
+  .modifica{border-top:1px dashed var(--line);margin-top:12px;padding-top:12px}
+
+  /* anteprima */
+  dialog{border:0;border-radius:12px;padding:0;width:min(920px,94vw);background:var(--card);color:var(--ink)}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  .dlg-testa{display:flex;align-items:center;gap:10px;padding:10px 14px;border-bottom:1px solid var(--line)}
+  .dlg-testa b{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .dlg-testa a{margin-left:auto;color:var(--accent);font-weight:600;text-decoration:none}
+  .dlg-corpo{height:min(70vh,600px);display:grid;place-items:center;background:var(--bg)}
+  .dlg-corpo img{max-width:100%;max-height:100%}
+  .dlg-corpo model-viewer{width:100%;height:100%}
+  @media (max-width:640px){.griglia{grid-template-columns:1fr}.testa .azioni{margin-left:0}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>AR<span>worksite</span> Server</h1>
+    <small id="ver"></small>
+    <nav><a href="/">Piante</a><a href="/cantieri">Cantieri</a><a href="/attivita" class="att">Attività</a><a href="/docs">API</a><span class="utente" id="utente"></span><form method="post" action="/logout"><button class="esci" type="submit">Esci</button></form></nav>
+  </header>
+
+  <section>
+    <h2>Nuova attività</h2>
+    <form id="form-nuova">
+      <div class="griglia">
+        <label>Titolo<input id="n-titolo" maxlength="150" required placeholder="es. Verifica tracce impianto elettrico"></label>
+        <label>Cantiere (facoltativo)<select id="n-cantiere"></select></label>
+        <label class="tutta">Descrizione<textarea id="n-descr" maxlength="5000" placeholder="Cosa va fatto, dove, entro quando…"></textarea></label>
+        <div class="tutta">
+          <p class="sotto-titolo">Assegna a <span id="n-conta">nessuno</span>
+            <button type="button" class="secondario" id="n-squadra" hidden>Aggiungi la squadra del cantiere</button></p>
+          <div class="persone" id="n-persone"></div>
+        </div>
+        <div class="tutta">
+          <p class="sotto-titolo">Allegati: foto, scansioni 3D (.glb) o altri file · massimo <span id="max"></span> MB ciascuno</p>
+          <div class="drop" id="n-drop" tabindex="0"><b>Trascina qui i file</b> oppure fai clic per sceglierli</div>
+          <input type="file" id="n-file" multiple hidden>
+          <ul class="scelti" id="n-scelti"></ul>
+        </div>
+      </div>
+      <progress id="avanz" max="100" value="0" hidden></progress>
+      <div class="riga-azioni"><button type="submit" id="n-crea">Crea attività</button></div>
+      <div class="msg" id="msg-nuova"></div>
+    </form>
+  </section>
+
+  <section>
+    <h2>Attività <span class="n" id="n-attivita">0</span>
+      <label class="destra">Filtra per persona<select id="filtro"><option value="">Tutte</option></select></label></h2>
+    <div id="elenco"><p class="vuoto">Caricamento…</p></div>
+    <div class="msg" id="msg-elenco"></div>
+  </section>
+</main>
+
+<dialog id="anteprima">
+  <div class="dlg-testa"><b id="dlg-nome"></b><a id="dlg-scarica" href="#">Scarica</a><button class="leggero" id="dlg-chiudi">Chiudi</button></div>
+  <div class="dlg-corpo" id="dlg-corpo"></div>
+</dialog>
+
+<script>
+const CFG = /*IMPOSTAZIONI*/{};
+const $ = id => document.getElementById(id);
+let ruoli = [], persone = [], cantieri = [], attivita = [], nuoviFile = [], ultimaCreata = null, inModifica = null;
+
+$("ver").textContent = "v" + CFG.versione;
+$("utente").textContent = CFG.utente || "";
+$("max").textContent = CFG.maxMb;
+const alLogin = () => { location.href = "/login?dopo=/attivita"; };
+
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const msg = (id, testo, tipo) => { $(id).textContent = testo || ""; $(id).className = "msg " + (tipo || ""); };
+const nomeCompleto = p => p.nome + " " + p.cognome;
+const kb = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)).toLocaleString("it-IT") + " KB"
+                            : (n / 1048576).toLocaleString("it-IT", {maximumFractionDigits: 1}) + " MB";
+const tipoDi = nome => /\.(jpe?g|png|webp|gif|heic|heif|bmp)$/i.test(nome) ? "foto" : /\.glb$/i.test(nome) ? "scansione3d" : "file";
+const ETICHETTA = { foto: "Foto", scansione3d: "Scansione 3D", file: "File" };
+const VIETATE = /\.(exe|bat|cmd|com|msi|ps1|vbs|js|jse|wsf|scr|dll|jar|html?|svg|lnk|reg|hta)$/i;
+
+async function api(metodo, percorso, corpo) {
+  const r = await fetch(percorso, { method: metodo, headers: { "Content-Type": "application/json" },
+                                    body: corpo ? JSON.stringify(corpo) : undefined });
+  if (r.status === 204) return null;
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { alLogin(); throw new Error("Sessione scaduta: rifai l'accesso"); }
+  if (!r.ok) throw new Error(typeof d.detail === "string" ? d.detail
+                             : Array.isArray(d.detail) ? "Dati non validi: " + d.detail.map(e => e.loc.at(-1)).join(", ")
+                             : "Errore " + r.status);
+  return d;
+}
+
+// Caricamento file con avanzamento (XHR: fetch non dà il progresso dell'invio).
+function caricaFile(idAttivita, files) {
+  return new Promise((ok, ko) => {
+    const dati = new FormData();
+    files.forEach(f => dati.append("file", f));
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `/api/attivita/${idAttivita}/allegati`);
+    xhr.upload.onprogress = ev => { if (ev.lengthComputable) $("avanz").value = ev.loaded / ev.total * 100; };
+    xhr.onload = () => {
+      let d = {}; try { d = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status === 401) { alLogin(); return ko(new Error("Sessione scaduta")); }
+      xhr.status === 201 ? ok(d) : ko(new Error(typeof d.detail === "string" ? d.detail : "Errore " + xhr.status));
+    };
+    xhr.onerror = () => ko(new Error("Server non raggiungibile"));
+    $("avanz").value = 0; $("avanz").hidden = false;
+    xhr.send(dati);
+  }).finally(() => { $("avanz").hidden = true; });
+}
+
+// --- Scelta delle persone (raggruppate per ruolo nell'ordine del file Excel) ---
+function htmlPersone(selezionate) {
+  if (!persone.length) return `<span class="vuoto">Nessuna persona: aggiungile nella pagina Cantieri.</span>`;
+  const ordine = r => { const i = ruoli.findIndex(x => x.sigla === r); return i < 0 ? 999 : i; };
+  return [...persone].sort((a, b) => ordine(a.ruolo) - ordine(b.ruolo) || a.cognome.localeCompare(b.cognome))
+    .map(p => `<label title="${esc(p.ruolo_nome || p.ruolo)}"><input type="checkbox" value="${p.id}" ${selezionate.has(p.id) ? "checked" : ""}>
+      <span class="sigla">${esc(p.ruolo)}</span>${esc(nomeCompleto(p))}</label>`).join("");
+}
+const scelte = box => [...box.querySelectorAll("input:checked")].map(i => Number(i.value));
+const opzioniCantieri = sel => `<option value="">— nessuno —</option>` +
+  cantieri.map(c => `<option value="${c.id}" ${c.id === sel ? "selected" : ""}>${esc(c.nome)}</option>`).join("");
+
+function aggiornaConta() {
+  const n = scelte($("n-persone")).length;
+  $("n-conta").textContent = n === 0 ? "nessuno" : n === 1 ? "1 persona" : n + " persone";
+  $("n-squadra").hidden = !Number($("n-cantiere").value);
+}
+$("n-persone").addEventListener("change", aggiornaConta);
+$("n-cantiere").addEventListener("change", aggiornaConta);
+$("n-squadra").addEventListener("click", () => {
+  const c = cantieri.find(x => x.id === Number($("n-cantiere").value));
+  if (!c) return;
+  const ids = new Set(c.squadra.map(m => m.id));
+  $("n-persone").querySelectorAll("input").forEach(i => { if (ids.has(Number(i.value))) i.checked = true; });
+  aggiornaConta();
+});
+
+// --- File della nuova attività ---
+function scegliFile(lista) {
+  const validi = [...lista].filter(f => !VIETATE.test(f.name));
+  const scartati = lista.length - validi.length;
+  nuoviFile = nuoviFile.concat(validi);
+  disegnaScelti();
+  if (scartati) msg("msg-nuova", `${scartati} file ignorati: programmi e pagine web non sono ammessi`, "err");
+}
+function disegnaScelti() {
+  $("n-scelti").innerHTML = nuoviFile.map((f, i) => `<li><span class="sigla">${ETICHETTA[tipoDi(f.name)]}</span>
+    <span>${esc(f.name)}</span><span>${kb(f.size)} <button type="button" class="leggero" data-togli-file="${i}">×</button></span></li>`).join("");
+}
+$("n-scelti").addEventListener("click", e => {
+  const b = e.target.closest("[data-togli-file]");
+  if (b) { nuoviFile.splice(Number(b.dataset.togliFile), 1); disegnaScelti(); }
+});
+const drop = $("n-drop");
+drop.addEventListener("click", () => $("n-file").click());
+drop.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("n-file").click(); } });
+$("n-file").addEventListener("change", e => { scegliFile(e.target.files); e.target.value = ""; });
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => scegliFile(e.dataTransfer.files));
+
+$("form-nuova").addEventListener("submit", async e => {
+  e.preventDefault();
+  const persone_ids = scelte($("n-persone"));
+  if (!persone_ids.length && !confirm("Non hai assegnato l'attività a nessuno. Crearla lo stesso?")) return;
+  $("n-crea").disabled = true;
+  try {
+    const a = await api("POST", "/api/attivita", { titolo: $("n-titolo").value, descrizione: $("n-descr").value,
+      cantiere_id: Number($("n-cantiere").value) || null, persone_ids });
+    let nota = "";
+    if (nuoviFile.length) {
+      msg("msg-nuova", "Caricamento degli allegati…");
+      try { await caricaFile(a.id, nuoviFile); }
+      catch (err) { nota = ` Attenzione: allegati non caricati (${err.message}); puoi aggiungerli dall'elenco.`; }
+    }
+    ultimaCreata = a.id;
+    $("form-nuova").reset(); nuoviFile = []; disegnaScelti();
+    $("n-persone").innerHTML = htmlPersone(new Set()); aggiornaConta();
+    msg("msg-nuova", `Attività «${a.titolo}» creata e assegnata a ${persone_ids.length} person${persone_ids.length === 1 ? "a" : "e"}.` + nota, nota ? "err" : "ok");
+    await ricaricaAttivita();
+  } catch (err) { msg("msg-nuova", err.message, "err"); }
+  finally { $("n-crea").disabled = false; }
+});
+
+// --- Elenco ---
+function urlFile(f, inline) { return f.url_download.replace(/^https?:\/\/[^/]+/, "") + (inline ? "?inline=true" : ""); }
+
+function htmlAllegato(a, f) {
+  const vista = f.tipo === "foto" ? `<button class="vista" data-apri="${f.id}" title="Apri"><img src="${urlFile(f, true)}" alt="" loading="lazy"></button>`
+              : f.tipo === "scansione3d" ? `<button class="vista" data-apri="${f.id}" title="Anteprima 3D"><span class="icona">GLB · 3D</span></button>`
+              : `<a class="vista" href="${urlFile(f)}" title="Scarica" style="text-decoration:none"><span class="icona">${esc((f.nome.split(".").pop() || "FILE").toUpperCase().slice(0, 5))}</span></a>`;
+  return `<div class="all">${vista}<div class="nome" title="${esc(f.nome)}">${esc(f.nome)}<small>${ETICHETTA[f.tipo]} · ${kb(f.dimensione)}</small></div>
+    <button class="togli" data-togli-all="${f.id}" aria-label="Elimina ${esc(f.nome)}">×</button></div>`;
+}
+
+function htmlModifica(a) {
+  return `<div class="modifica"><div class="griglia">
+    <label>Titolo<input data-m="titolo" maxlength="150" value="${esc(a.titolo)}"></label>
+    <label>Cantiere<select data-m="cantiere">${opzioniCantieri(a.cantiere && a.cantiere.id)}</select></label>
+    <label class="tutta">Descrizione<textarea data-m="descr" maxlength="5000">${esc(a.descrizione)}</textarea></label>
+    <div class="tutta"><p class="sotto-titolo">Assegnata a</p><div class="persone" data-m="persone">${htmlPersone(new Set(a.assegnatari.map(p => p.id)))}</div></div>
+  </div><div class="riga-azioni"><button data-salva>Salva</button><button class="leggero" data-annulla>Annulla</button></div></div>`;
+}
+
+function disegnaElenco() {
+  const filtro = Number($("filtro").value);
+  const lista = filtro ? attivita.filter(a => a.assegnatari.some(p => p.id === filtro)) : attivita;
+  $("n-attivita").textContent = lista.length;
+  if (!lista.length) { $("elenco").innerHTML = `<p class="vuoto">${filtro ? "Nessuna attività per questa persona." : "Nessuna attività. Creane una qui sopra."}</p>`; return; }
+  $("elenco").innerHTML = lista.map(a => `<div class="attivita ${a.id === ultimaCreata ? "nuova" : ""}" data-attivita="${a.id}">
+    <div class="testa"><h3>${esc(a.titolo)}</h3>${a.cantiere ? `<span class="badge">${esc(a.cantiere.nome)}</span>` : ""}
+      <span class="data">creata il ${new Date(a.creata).toLocaleDateString("it-IT")}</span>
+      <span class="azioni"><button class="secondario" data-aggiungi>+ Allegati</button><button class="secondario" data-modifica>Modifica</button>
+        <button class="leggero" data-elimina>Elimina</button></span></div>
+    ${a.descrizione ? `<p class="descr">${esc(a.descrizione)}</p>` : ""}
+    <div class="chips">${a.assegnatari.length ? a.assegnatari.map(p => `<span class="chip" title="${esc(p.ruolo_nome || "")}"><span class="sigla">${esc(p.ruolo)}</span>${esc(nomeCompleto(p))}</span>`).join("")
+                         : `<span class="nessuno">Non assegnata a nessuno</span>`}</div>
+    ${a.allegati.length ? `<div class="allegati">${a.allegati.map(f => htmlAllegato(a, f)).join("")}</div>` : ""}
+    <input type="file" multiple hidden data-file>
+    ${inModifica === a.id ? htmlModifica(a) : ""}
+  </div>`).join("");
+  ultimaCreata = null;
+}
+
+async function ricaricaAttivita() { attivita = await api("GET", "/api/attivita"); disegnaElenco(); }
+
+async function ricarica() {
+  try {
+    [ruoli, persone, cantieri, attivita] = await Promise.all(
+      [api("GET", "/api/ruoli"), api("GET", "/api/persone"), api("GET", "/api/cantieri"), api("GET", "/api/attivita")]);
+    $("n-cantiere").innerHTML = opzioniCantieri(null);
+    $("n-persone").innerHTML = htmlPersone(new Set(scelte($("n-persone"))));
+    const f = $("filtro").value;
+    $("filtro").innerHTML = `<option value="">Tutte</option>` + persone.map(p => `<option value="${p.id}">${esc(nomeCompleto(p))}</option>`).join("");
+    $("filtro").value = f;
+    aggiornaConta(); disegnaElenco();
+  } catch (e) { $("elenco").innerHTML = `<p class="vuoto">${esc(e.message)}</p>`; }
+}
+$("filtro").addEventListener("change", disegnaElenco);
+
+$("elenco").addEventListener("click", async e => {
+  const box = e.target.closest("[data-attivita]");
+  if (!box) return;
+  const a = attivita.find(x => x.id === Number(box.dataset.attivita));
+  try {
+    if (e.target.closest("[data-apri]")) {
+      apri(a.allegati.find(f => f.id === Number(e.target.closest("[data-apri]").dataset.apri)));
+    } else if (e.target.closest("[data-togli-all]")) {
+      const f = a.allegati.find(x => x.id === Number(e.target.closest("[data-togli-all]").dataset.togliAll));
+      if (!confirm(`Eliminare l'allegato «${f.nome}»?`)) return;
+      await api("DELETE", `/api/attivita/${a.id}/allegati/${f.id}`);
+      msg("msg-elenco", `Allegato «${f.nome}» eliminato.`, "ok"); await ricaricaAttivita();
+    } else if (e.target.closest("[data-aggiungi]")) {
+      box.querySelector("[data-file]").click();
+    } else if (e.target.closest("[data-modifica]")) {
+      inModifica = inModifica === a.id ? null : a.id; disegnaElenco();
+    } else if (e.target.closest("[data-annulla]")) {
+      inModifica = null; disegnaElenco();
+    } else if (e.target.closest("[data-salva]")) {
+      const m = sel => box.querySelector(`[data-m="${sel}"]`);
+      await api("PATCH", `/api/attivita/${a.id}`, { titolo: m("titolo").value, descrizione: m("descr").value,
+        cantiere_id: Number(m("cantiere").value) || null, persone_ids: scelte(m("persone")) });
+      inModifica = null; msg("msg-elenco", `Attività «${m("titolo").value}» aggiornata.`, "ok"); await ricaricaAttivita();
+    } else if (e.target.closest("[data-elimina]")) {
+      if (!confirm(`Eliminare l'attività «${a.titolo}» con tutti i suoi allegati?\nSparirà anche dall'app delle persone assegnate.`)) return;
+      await api("DELETE", `/api/attivita/${a.id}`);
+      msg("msg-elenco", `Attività «${a.titolo}» eliminata.`, "ok"); await ricaricaAttivita();
+    }
+  } catch (err) { msg("msg-elenco", err.message, "err"); }
+});
+
+$("elenco").addEventListener("change", async e => {
+  const input = e.target.closest("[data-file]");
+  if (!input || !input.files.length) return;
+  const a = attivita.find(x => x.id === Number(e.target.closest("[data-attivita]").dataset.attivita));
+  const files = [...input.files].filter(f => !VIETATE.test(f.name));
+  if (!files.length) { msg("msg-elenco", "Programmi e pagine web non sono ammessi.", "err"); return; }
+  try {
+    msg("msg-elenco", "Caricamento…");
+    const r = await caricaFile(a.id, files);
+    msg("msg-elenco", `${r.caricati.length} allegat${r.caricati.length === 1 ? "o aggiunto" : "i aggiunti"} a «${a.titolo}».`, "ok");
+    await ricaricaAttivita();
+  } catch (err) { msg("msg-elenco", err.message, "err"); }
+});
+
+// --- Anteprima foto e scansioni 3D ---
+let modelViewer = null;
+function caricaModelViewer() {
+  if (!modelViewer) modelViewer = new Promise((ok, ko) => {
+    const s = document.createElement("script");
+    s.type = "module";
+    s.src = "https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js";
+    s.onload = () => customElements.whenDefined("model-viewer").then(ok);
+    s.onerror = () => { modelViewer = null; ko(new Error("visualizzatore 3D non disponibile (serve internet sul PC)")); };
+    document.head.append(s);
+  });
+  return modelViewer;
+}
+async function apri(f) {
+  $("dlg-nome").textContent = f.nome;
+  $("dlg-scarica").href = urlFile(f);
+  const corpo = $("dlg-corpo");
+  corpo.innerHTML = f.tipo === "foto" ? `<img src="${urlFile(f, true)}" alt="${esc(f.nome)}">` : `<span class="vuoto">Caricamento del modello 3D…</span>`;
+  $("anteprima").showModal();
+  if (f.tipo !== "scansione3d") return;
+  try {
+    await caricaModelViewer();
+    corpo.innerHTML = `<model-viewer src="${urlFile(f, true)}" camera-controls touch-action="pan-y" shadow-intensity="0.6" exposure="1" alt="${esc(f.nome)}"></model-viewer>`;
+  } catch (err) { corpo.innerHTML = `<span class="vuoto">Anteprima non disponibile: ${esc(err.message)}. Usa «Scarica».</span>`; }
+}
+$("dlg-chiudi").addEventListener("click", () => $("anteprima").close());
+$("anteprima").addEventListener("close", () => { $("dlg-corpo").innerHTML = ""; });
+
+ricarica();
+</script>
+</body>
+</html>

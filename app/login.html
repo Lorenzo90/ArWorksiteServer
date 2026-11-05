@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Accesso · ARworksite</title>
+<style>
+  :root{--bg:#f6f5f2;--card:#fff;--ink:#1f2328;--muted:#6b7078;--line:#e3e1dc;--accent:#d9661f;--accent-ink:#fff;--err:#b3261e}
+  @media (prefers-color-scheme:dark){:root{--bg:#16181b;--card:#1f2226;--ink:#e8e6e3;--muted:#9aa0a6;--line:#33373c;--accent:#f08a3e;--accent-ink:#1a1a1a;--err:#ff8a80}}
+  *{box-sizing:border-box}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;padding:16px}
+  main{width:100%;max-width:360px}
+  h1{font-size:22px;margin:0 0 4px} h1 span{color:var(--accent)}
+  .sotto{color:var(--muted);margin:0 0 20px;font-size:14px}
+  form{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:22px;display:flex;flex-direction:column;gap:14px}
+  label{display:flex;flex-direction:column;gap:5px;font-size:13px;color:var(--muted)}
+  input{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+  input:focus{outline:2px solid var(--accent);outline-offset:-1px}
+  button{font:inherit;font-weight:600;padding:11px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);cursor:pointer;margin-top:4px}
+  .errore{margin:0;color:var(--err);font-size:14px}
+  small{display:block;text-align:center;color:var(--muted);margin-top:14px}
+</style>
+</head>
+<body>
+<main>
+  <h1>AR<span>worksite</span> Server</h1>
+  <p class="sotto">Gestione di cantieri, persone e piante</p>
+  <form method="post" action="/login">
+    {{ERRORE}}
+    <label>Utente<input name="username" value="{{UTENTE}}" autocomplete="username" autocapitalize="none" required autofocus></label>
+    <label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+    <input type="hidden" name="dopo" value="{{DOPO}}">
+    <button type="submit">Entra</button>
+  </form>
+  <small>v{{VERSIONE}}</small>
+</main>
+</body>
+</html>
