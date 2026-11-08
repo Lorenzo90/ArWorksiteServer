@@ -18,7 +18,8 @@ from fastapi.openapi.docs import get_swagger_ui_html
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
-from . import __version__, accesso_api, attivita_api, cantieri_api, config, db, piante
+from . import (__version__, accesso_api, appartamenti, appartamenti_api, attivita_api, cantieri_api, config, db, pacchetto,
+               piante, raccolta_api)
 from .sicurezza import COOKIE, admin_corrente, admin_o_app, archivio_pronto, solo_admin
 
 # La documentazione è servita più sotto, solo al superuser collegato.
@@ -36,6 +37,8 @@ app.include_router(cantieri_api.router)
 app.include_router(accesso_api.router)
 app.include_router(attivita_api.router)
 app.include_router(attivita_api.router_file)
+app.include_router(appartamenti_api.router)
+app.include_router(raccolta_api.router)
 
 
 class PiantaOut(BaseModel):
@@ -90,11 +93,19 @@ def health():
     return {"stato": "ok", "versione": __version__}
 
 
-@app.get("/api/piante", response_model=ElencoPiante, tags=["piante"],
-         dependencies=[Depends(admin_o_app)])
-def elenco_piante(request: Request, cantiere: Optional[str] = None, formato: Optional[str] = None):
-    """Elenco delle piante disponibili. `sha256` serve al client per sapere se la copia locale è aggiornata."""
+def _visibili(persona: Optional[dict]) -> Optional[set[str]]:
+    return None if persona is None else pacchetto.piante_consentite(persona["id"])
+
+
+@app.get("/api/piante", response_model=ElencoPiante, tags=["piante"])
+def elenco_piante(request: Request, cantiere: Optional[str] = None, formato: Optional[str] = None,
+                  persona: Optional[dict] = Depends(admin_o_app)):
+    """Elenco delle piante. `sha256` serve al client per sapere se la copia locale è aggiornata.
+    Con il token dell'app solo le piante dei cantieri/appartamenti assegnati alla persona."""
     lista = piante.elenco()
+    visibili = _visibili(persona)
+    if visibili is not None:
+        lista = [p for p in lista if p.id in visibili]
     if cantiere:
         lista = [p for p in lista if (p.cantiere or "").lower() == cantiere.lower()]
     if formato:
@@ -147,26 +158,30 @@ async def carica_piante(request: Request,
             if tmp.exists():
                 tmp.unlink()
 
+    if cantiere and cantiere.strip():
+        appartamenti.sincronizza_cartella(cartella.name)  # legge gli appartamenti del cantiere
     tutte = {p.percorso.resolve(): p for p in piante.elenco()}
     return EsitoCaricamento(caricate=[_out(tutte[d.resolve()], request) for d in scritti if d.resolve() in tutte])
 
 
-@app.get("/api/piante/{id_pianta}", response_model=PiantaOut, tags=["piante"],
-         dependencies=[Depends(admin_o_app)])
-def dettaglio_pianta(id_pianta: str, request: Request):
+@app.get("/api/piante/{id_pianta}", response_model=PiantaOut, tags=["piante"])
+def dettaglio_pianta(id_pianta: str, request: Request, persona: Optional[dict] = Depends(admin_o_app)):
     p = piante.trova(id_pianta)
-    if not p:
+    visibili = _visibili(persona)
+    if not p or (visibili is not None and p.id not in visibili):
         raise HTTPException(status_code=404, detail="Pianta non trovata")
     return _out(p, request)
 
 
 @app.get("/api/piante/{id_pianta}/file", tags=["piante"], name="scarica_pianta",
-         dependencies=[Depends(admin_o_app)],
          responses={200: {"content": {"application/octet-stream": {}}}, 304: {"description": "Non modificata"}})
-def scarica_pianta(id_pianta: str, if_none_match: Optional[str] = Header(default=None)):
-    """Scarica il file. Con `If-None-Match: "<sha256>"` risponde 304 se il client ha già questa versione."""
+def scarica_pianta(id_pianta: str, if_none_match: Optional[str] = Header(default=None),
+                   persona: Optional[dict] = Depends(admin_o_app)):
+    """Scarica il file. Con `If-None-Match: "<sha256>"` risponde 304 se il client ha già questa versione.
+    Con il token dell'app solo le piante assegnate alla persona (le altre rispondono 404)."""
     p = piante.trova(id_pianta)
-    if not p:
+    visibili = _visibili(persona)
+    if not p or (visibili is not None and p.id not in visibili):
         raise HTTPException(status_code=404, detail="Pianta non trovata")
     etag = f'"{p.sha256}"'
     if if_none_match and etag in [t.strip() for t in if_none_match.split(",")]:
@@ -241,15 +256,6 @@ def esegui_logout(request: Request):
 
 
 @app.get("/", response_class=HTMLResponse, include_in_schema=False)
-def home(request: Request):
-    admin = admin_corrente(request)
-    if not admin:
-        return _al_login(request)
-    cantieri = sorted({p.cantiere for p in piante.elenco() if p.cantiere})
-    return _pagina("pagina.html", {"versione": __version__, "chiave": False, "utente": admin["username"],
-                                   "maxMb": config.MAX_UPLOAD_MB, "cantieri": cantieri})
-
-
 @app.get("/cantieri", response_class=HTMLResponse, include_in_schema=False)
 def pagina_cantieri(request: Request):
     admin = admin_corrente(request)
@@ -258,13 +264,18 @@ def pagina_cantieri(request: Request):
     return _pagina("cantieri.html", {"versione": __version__, "chiave": False, "utente": admin["username"]})
 
 
-@app.get("/attivita", response_class=HTMLResponse, include_in_schema=False)
-def pagina_attivita(request: Request):
+@app.get("/cantieri/{id_cantiere}", response_class=HTMLResponse, include_in_schema=False)
+def pagina_scheda_cantiere(id_cantiere: int, request: Request):
     admin = admin_corrente(request)
     if not admin:
         return _al_login(request)
-    return _pagina("attivita.html", {"versione": __version__, "utente": admin["username"],
-                                     "maxMb": config.MAX_UPLOAD_MB})
+    return _pagina("cantiere.html", {"versione": __version__, "utente": admin["username"],
+                                     "maxMb": config.MAX_UPLOAD_MB, "cantiere": id_cantiere})
+
+
+@app.get("/attivita", include_in_schema=False)
+def vecchia_pagina_attivita():
+    return RedirectResponse("/cantieri", status_code=303)
 
 
 @app.get("/openapi.json", include_in_schema=False)

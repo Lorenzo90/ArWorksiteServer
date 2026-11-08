@@ -1,0 +1,566 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Cantiere · ARworksite</title>
+<style>
+  :root{--bg:#f6f5f2;--card:#fff;--ink:#1f2328;--muted:#6b7078;--line:#e3e1dc;--accent:#d9661f;--accent-ink:#fff;--ok:#2f7d4f;--err:#b3261e;--soft:#fff6ef;--chip:#f1efea;--cl:#2f6db3;--cl-soft:#eef4fb;--st-aperta:#2f6db3;--st-aperta-bg:#eef4fb;--st-carico:#6a45b0;--st-carico-bg:#f2edfb;--st-ver:#9a5b00;--st-ver-bg:#fff4dc;--st-chiusa:#2f7d4f;--st-chiusa-bg:#e9f5ee}
+  @media (prefers-color-scheme:dark){:root{--bg:#16181b;--card:#1f2226;--ink:#e8e6e3;--muted:#9aa0a6;--line:#33373c;--accent:#f08a3e;--accent-ink:#1a1a1a;--ok:#6cc58f;--err:#ff8a80;--soft:#2a2420;--chip:#2a2d31;--cl:#8ab8ef;--cl-soft:#1d2733;--st-aperta:#8ab8ef;--st-aperta-bg:#1d2733;--st-carico:#c3a6f5;--st-carico-bg:#251d33;--st-ver:#f2c46b;--st-ver-bg:#2e2615;--st-chiusa:#6cc58f;--st-chiusa-bg:#17291f}}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif}
+  main{max-width:1060px;margin:0 auto;padding:24px 16px 48px}
+  header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:14px}
+  h1{font-size:22px;margin:0} h1 span{color:var(--accent)}
+  header small{color:var(--muted)}
+  nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}
+  nav a{color:var(--muted);text-decoration:none;padding:6px 12px;border-radius:8px;font-weight:600}
+  nav a:hover{background:var(--card)}
+  nav a.att{background:var(--card);color:var(--accent);border:1px solid var(--line)}
+  nav form{margin:0}
+  nav .esci{background:transparent;color:var(--muted);padding:6px 12px;border:0;border-radius:8px;cursor:pointer;font:inherit;font-weight:600}
+  nav .esci:hover{background:var(--card);color:var(--ink)}
+  nav .utente{color:var(--muted);font-size:13px;align-self:center;padding:0 4px 0 10px;border-left:1px solid var(--line)}
+  .indietro{color:var(--muted);text-decoration:none;font-size:14px}
+  .indietro:hover{color:var(--accent)}
+  .titolo{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:6px 0 18px}
+  .titolo h2{font-size:26px;margin:0}
+  .numeri{display:flex;gap:8px;flex-wrap:wrap}
+  .num{font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:20px;padding:2px 10px}
+  .num b{color:var(--ink)}
+  section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:18px;margin-bottom:18px}
+  h3{font-size:16px;margin:0 0 12px;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  h3 .n{font-size:12px;font-weight:600;color:var(--muted);background:var(--bg);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
+  h3 .destra{margin-left:auto;display:flex;gap:6px}
+  label{display:flex;flex-direction:column;gap:4px;font-size:13px;color:var(--muted)}
+  input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--bg);color:var(--ink)}
+  textarea{min-height:72px;resize:vertical}
+  button{font:inherit;font-weight:600;padding:8px 16px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+  button:disabled{opacity:.45;cursor:default}
+  button.secondario{background:transparent;color:var(--accent);border:1px solid var(--line);padding:6px 12px}
+  button.secondario:hover{border-color:var(--accent)}
+  button.leggero{background:transparent;color:var(--muted);padding:4px 8px;border:1px solid transparent}
+  button.leggero:hover{color:var(--err);border-color:var(--line)}
+  .riga{display:flex;gap:10px;flex-wrap:wrap;align-items:end}
+  .riga label.largo{flex:1;min-width:200px}
+  .msg{font-size:14px;min-height:1em;margin-top:8px}
+  .msg.ok{color:var(--ok)} .msg.err{color:var(--err)}
+  .vuoto{color:var(--muted);font-size:14px;margin:4px 0}
+  .pannello{border:1px dashed var(--line);border-radius:10px;padding:12px;margin-top:10px;background:var(--bg)}
+  .pannello[hidden]{display:none}
+
+  .chips{display:flex;flex-wrap:wrap;gap:6px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:3px 4px 3px 5px;font-size:14px}
+  .chip.dl{background:var(--soft);border-color:var(--accent)}
+  .chip.cl{background:var(--cl-soft);border-color:var(--cl)}
+  .chip button{background:transparent;color:var(--muted);padding:0 6px;font-size:16px;line-height:1;border-radius:10px}
+  .chip button:hover{color:var(--err)}
+  .sigla{font:700 11px ui-monospace,Consolas,monospace;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:2px 6px;color:var(--muted)}
+  .chip.dl .sigla{color:var(--accent);border-color:var(--accent)}
+  .chip.cl .sigla{color:var(--cl);border-color:var(--cl)}
+
+  .piante{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:12px}
+  .pianta{display:inline-flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:14px;color:var(--ink);text-decoration:none}
+  .pianta:hover{border-color:var(--accent)}
+  .pianta .sigla{color:var(--accent)}
+  .avvisi{font-size:13px;color:var(--err);margin:0 0 10px;padding-left:18px}
+  .appartamenti{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+  .app{border:1px solid var(--line);border-radius:10px;padding:12px;display:flex;flex-direction:column;gap:8px}
+  .app.comune{background:var(--bg);border-style:dashed}
+  .app-testa b{white-space:nowrap}
+  .app .tutta-pianta{font-size:12px;color:var(--accent);font-weight:600}
+  .app-testa{display:flex;align-items:baseline;gap:8px}
+  .app-testa b{font-size:16px}
+  .app-testa small{color:var(--muted);font-size:12px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .app-testa .leggero{margin-left:auto}
+  .app .etichetta{font-size:12px;color:var(--muted)}
+  .app .committ{font-size:12px;color:var(--muted);margin:0}
+  .app select{padding:5px 8px;font-size:14px;min-width:0;flex:1}
+  .app .agg{display:flex;gap:6px}
+  .app .badge{font-size:12px;color:var(--muted)}
+  .app .raccolta{font-size:12px;color:var(--muted);display:flex;justify-content:space-between;gap:8px;align-items:center}
+  .app .raccolta button{padding:2px 8px;font-size:12px}
+  .rc-gruppo{margin-top:10px} .rc-gruppo h5{margin:0 0 4px;font-size:13px}
+  .rc-file{display:flex;gap:10px;font-size:13px;padding:2px 0;border-top:1px solid var(--line)}
+  .rc-file a{color:var(--ink);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rc-file a:hover{color:var(--accent)} .rc-file span{color:var(--muted);white-space:nowrap}
+  .allegati{display:flex;flex-wrap:wrap;gap:4px 12px;margin-top:4px;font-size:12px}
+  .allegati a{color:var(--accent);text-decoration:none} .allegati span{color:var(--muted)}
+  .drop{border:2px dashed var(--line);border-radius:10px;padding:10px 14px;cursor:pointer;color:var(--muted);font-size:14px}
+  .drop:hover,.drop.over{border-color:var(--accent);background:var(--soft)}
+  .drop b{color:var(--accent)}
+
+  .ratt{border-top:1px solid var(--line);padding:10px 0;display:flex;gap:10px;align-items:flex-start;flex-wrap:wrap}
+  .ratt:first-of-type{border-top:0}
+  .ratt .corpo{flex:1;min-width:220px}
+  .ratt h4{margin:0 0 2px;font-size:15px;display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+  .ratt .badge{font-size:12px;border:1px solid var(--line);border-radius:6px;padding:0 6px;color:var(--muted);font-weight:400}
+  .ratt p{margin:2px 0 6px;color:var(--muted);font-size:14px;white-space:pre-wrap;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .ratt .chip{font-size:12px;padding:1px 8px 1px 4px}
+  .ratt .data{font-size:12px;color:var(--muted);white-space:nowrap}
+  .ratt .lato{display:flex;flex-direction:column;align-items:flex-end;gap:6px}
+  .stato{font:inherit;font-size:13px;font-weight:600;border-radius:20px;padding:3px 10px;border:1px solid currentColor;cursor:pointer}
+  .stato.aperta{color:var(--st-aperta);background:var(--st-aperta-bg)}
+  .stato.presa_in_carico{color:var(--st-carico);background:var(--st-carico-bg)}
+  .apri-note{background:transparent;color:var(--accent);border:0;padding:4px 0;font-size:13px;font-weight:600;margin-top:4px}
+  .apri-note:hover{text-decoration:underline}
+  .cronologia{flex-basis:100%;border:1px solid var(--line);border-radius:10px;background:var(--bg);padding:10px 12px;margin-top:2px}
+  .evento{display:grid;grid-template-columns:118px 1fr;gap:2px 12px;padding:7px 0;border-top:1px solid var(--line);font-size:13px}
+  .evento:first-child{border-top:0}
+  .evento .quando{color:var(--muted);font-size:12px;padding-top:1px}
+  .evento .chi{font-weight:600}
+  .evento .testo{grid-column:2;white-space:pre-wrap;color:var(--ink)}
+  .evento.nota .testo{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:6px 10px}
+  .evento .mini{font-size:11px;font-weight:600;border-radius:20px;padding:1px 8px;border:1px solid currentColor;margin-left:4px}
+  .mini.aperta{color:var(--st-aperta);background:var(--st-aperta-bg)}
+  .mini.presa_in_carico{color:var(--st-carico);background:var(--st-carico-bg)}
+  .mini.da_verificare{color:var(--st-ver);background:var(--st-ver-bg)}
+  .mini.chiusa{color:var(--st-chiusa);background:var(--st-chiusa-bg)}
+  .nuova-nota{display:flex;gap:8px;margin-top:8px;align-items:flex-end}
+  .nuova-nota textarea{flex:1;min-height:38px;resize:vertical}
+  .ratt .incarico{font-size:12px;color:var(--st-carico);font-weight:600;margin-top:4px}
+  .stato.da_verificare{color:var(--st-ver);background:var(--st-ver-bg)}
+  .stato.chiusa{color:var(--st-chiusa);background:var(--st-chiusa-bg)}
+  .ratt.chiusa h4{text-decoration:line-through;text-decoration-color:var(--muted);color:var(--muted)}
+  .ratt .ultimo{font-size:12px;color:var(--muted);margin-top:4px}
+  .filtri{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 8px}
+  .filtri button{background:var(--chip);color:var(--ink);border:1px solid var(--line);border-radius:20px;padding:3px 12px;font-size:13px;font-weight:600}
+  .filtri button.att{background:var(--soft);border-color:var(--accent);color:var(--accent)}
+  .persone{display:flex;flex-wrap:wrap;gap:6px;max-height:170px;overflow:auto;padding:2px}
+  .persone label{flex-direction:row;align-items:center;gap:6px;background:var(--chip);border:1px solid var(--line);border-radius:20px;padding:4px 10px 4px 6px;color:var(--ink);font-size:14px;cursor:pointer}
+  .persone label:has(input:checked){background:var(--soft);border-color:var(--accent)}
+  .persone input{margin:0;accent-color:var(--accent)}
+  .persone .sep{flex-basis:100%;font-size:12px;color:var(--muted);margin-top:4px}
+  .griglia{display:grid;grid-template-columns:2fr 1fr;gap:10px}
+  .griglia .tutta{grid-column:1/-1}
+  progress{width:100%;height:8px;accent-color:var(--accent)}
+
+  .cred{display:flex;gap:16px;align-items:center;flex-wrap:wrap;background:var(--soft);border:1px solid var(--accent);border-radius:10px;padding:12px 14px;margin-bottom:18px}
+  .cred[hidden]{display:none}
+  .cred b{display:block;font-size:12px;color:var(--muted);font-weight:600}
+  .cred code{font:600 16px ui-monospace,Consolas,monospace;user-select:all}
+  .cred p{flex-basis:100%;margin:0;font-size:13px;color:var(--muted)}
+  .cred .chiudi{margin-left:auto}
+  @media (max-width:700px){.griglia{grid-template-columns:1fr}.titolo h2{font-size:22px}}
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>AR<span>worksite</span> Server</h1>
+    <small id="ver"></small>
+    <nav><a href="/cantieri" class="att">Cantieri</a><a href="/docs">API</a><span class="utente" id="utente"></span><form method="post" action="/logout"><button class="esci" type="submit">Esci</button></form></nav>
+  </header>
+
+  <a class="indietro" href="/cantieri">← Tutti i cantieri</a>
+  <div class="titolo"><h2 id="nome">…</h2><div class="numeri" id="numeri"></div></div>
+
+  <div class="cred" id="cred" hidden>
+    <div><b>Nuova persona</b><span id="cred-nome"></span></div>
+    <div><b>Utente</b><code id="cred-utente"></code></div>
+    <div><b>Password</b><code id="cred-password"></code></div>
+    <button type="button" class="secondario" id="cred-copia">Copia</button>
+    <button type="button" class="leggero chiudi" id="cred-chiudi">Chiudi</button>
+    <p>Annotala adesso: il server non la salva in chiaro e non potrà mostrarla di nuovo.</p>
+  </div>
+
+  <!-- Squadra -->
+  <section>
+    <h3>Squadra <span class="n" id="n-squadra">0</span>
+      <span class="destra"><button class="secondario" id="apri-nuova-persona">+ Nuova persona</button></span></h3>
+    <div class="chips" id="squadra"></div>
+    <div class="riga" style="margin-top:12px">
+      <label class="largo">Aggiungi una persona già registrata<select id="sq-scelta"></select></label>
+      <button class="secondario" id="sq-aggiungi">Aggiungi alla squadra</button>
+    </div>
+    <div class="pannello" id="pann-persona" hidden>
+      <div class="riga">
+        <label>Nome<input id="np-nome" maxlength="60"></label>
+        <label>Cognome<input id="np-cognome" maxlength="60"></label>
+        <label>Ruolo<select id="np-ruolo"></select></label>
+        <button id="np-crea">Crea e aggiungi alla squadra</button>
+        <button class="leggero" data-chiudi="pann-persona">Annulla</button>
+      </div>
+    </div>
+    <div class="msg" id="msg-squadra"></div>
+  </section>
+
+  <!-- Piante e appartamenti -->
+  <section>
+    <h3>Appartamenti <span class="n" id="n-app">0</span>
+      <span class="destra"><button class="secondario" id="apri-nuovo-app">+ Appartamento a mano</button></span></h3>
+    <div class="piante" id="piante"></div>
+    <ul class="avvisi" id="avvisi"></ul>
+    <div class="drop" id="drop-pianta" tabindex="0"><b>Carica una pianta DXF o DWG</b> (trascinala qui o fai clic): dal DXF vengono letti gli appartamenti (etichette u.a.01, App. 1…)</div>
+    <input type="file" id="file-pianta" accept=".dxf,.dwg" multiple hidden>
+    <progress id="avanz-pianta" max="100" value="0" hidden></progress>
+    <div class="pannello" id="pann-app" hidden>
+      <div class="riga">
+        <label class="largo">Nome dell'appartamento<input id="na-nome" maxlength="60" placeholder="es. APP 5"></label>
+        <button id="na-crea">Aggiungi</button>
+        <button class="leggero" data-chiudi="pann-app">Annulla</button>
+      </div>
+    </div>
+    <div class="msg" id="msg-app"></div>
+    <div class="appartamenti" id="appartamenti" style="margin-top:12px"></div>
+    <div class="pannello" id="pann-raccolta" hidden>
+      <div class="riga" style="justify-content:space-between"><b id="rc-titolo"></b><button type="button" class="leggero" data-chiudi="pann-raccolta">Chiudi</button></div>
+      <div id="rc-elenco"></div>
+    </div>
+    <div class="pannello" id="pann-committente" hidden>
+      <p class="vuoto" id="nc-per" style="margin-top:0"></p>
+      <div class="riga">
+        <label>Nome<input id="nc-nome" maxlength="60"></label>
+        <label>Cognome<input id="nc-cognome" maxlength="60"></label>
+        <button id="nc-crea">Crea committente</button>
+        <button class="leggero" data-chiudi="pann-committente">Annulla</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Attività -->
+  <section>
+    <h3>Attività <span class="n" id="n-att">0</span>
+      <span class="destra"><button class="secondario" id="apri-nuova-att">+ Nuova attività</button></span></h3>
+    <div class="filtri" id="filtri"></div>
+    <form class="pannello" id="pann-att" hidden>
+      <div class="griglia">
+        <label>Titolo<input id="nt-titolo" maxlength="150" required placeholder="es. Verifica tracce bagno"></label>
+        <label>Appartamento o spazio comune<select id="nt-app" required></select></label>
+        <label class="tutta">Descrizione<textarea id="nt-descr" maxlength="5000"></textarea></label>
+        <div class="tutta"><label>Assegna a (squadra del cantiere)</label><div class="persone" id="nt-persone"></div></div>
+        <label class="tutta">Allegati (foto, scansioni 3D .glb, altri file)<input type="file" id="nt-file" multiple></label>
+      </div>
+      <progress id="avanz-att" max="100" value="0" hidden></progress>
+      <div class="riga" style="margin-top:10px"><button type="submit" id="nt-crea">Crea attività</button><button type="button" class="leggero" data-chiudi="pann-att">Annulla</button></div>
+    </form>
+    <div class="msg" id="msg-att"></div>
+    <div id="attivita"></div>
+  </section>
+</main>
+
+<script>
+const CFG = /*IMPOSTAZIONI*/{};
+const ID = CFG.cantiere;
+const $ = id => document.getElementById(id);
+let scheda = null, ruoli = [], persone = [], committentePer = null, filtroStato = "";
+const noteAperte = new Set(), bozzeNote = {};  // pannelli aperti e testo non ancora inviato: restano dopo ogni aggiornamento
+const STATI = { aperta: "Aperta", presa_in_carico: "Presa in carico", da_verificare: "Da verificare", chiusa: "Chiusa" };
+
+$("ver").textContent = "v" + CFG.versione;
+$("utente").textContent = CFG.utente || "";
+const alLogin = () => { location.href = "/login?dopo=/cantieri/" + ID; };
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const msg = (id, testo, tipo) => { $(id).textContent = testo || ""; $(id).className = "msg " + (tipo || ""); };
+const nomeCompleto = p => p.nome + " " + p.cognome;
+const kb = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " KB" : (n / 1048576).toLocaleString("it-IT", {maximumFractionDigits: 1}) + " MB";
+const chip = (p, classe, togli) => `<span class="chip ${classe || ""}" title="${esc(p.ruolo_nome || "")}"><span class="sigla">${esc(p.ruolo)}</span>${esc(nomeCompleto(p))}${togli ? `<button ${togli} aria-label="Togli ${esc(nomeCompleto(p))}">×</button>` : ""}</span>`;
+const VIETATE = /\.(exe|bat|cmd|com|msi|ps1|vbs|js|jse|wsf|scr|dll|jar|html?|svg|lnk|reg|hta)$/i;
+
+async function api(metodo, percorso, corpo) {
+  const r = await fetch(percorso, { method: metodo, headers: { "Content-Type": "application/json" }, body: corpo ? JSON.stringify(corpo) : undefined });
+  if (r.status === 204) return null;
+  const d = await r.json().catch(() => ({}));
+  if (r.status === 401) { alLogin(); throw new Error("Sessione scaduta"); }
+  if (!r.ok) throw new Error(typeof d.detail === "string" ? d.detail : Array.isArray(d.detail) ? "Dati non validi: " + d.detail.map(e => e.loc.at(-1)).join(", ") : "Errore " + r.status);
+  return d;
+}
+function invia(percorso, files, barra, extra) {
+  return new Promise((ok, ko) => {
+    const dati = new FormData();
+    files.forEach(f => dati.append("file", f));
+    Object.entries(extra || {}).forEach(([k, v]) => dati.append(k, v));
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", percorso);
+    xhr.upload.onprogress = ev => { if (ev.lengthComputable) $(barra).value = ev.loaded / ev.total * 100; };
+    xhr.onload = () => {
+      let d = {}; try { d = JSON.parse(xhr.responseText); } catch (e) {}
+      if (xhr.status === 401) { alLogin(); return ko(new Error("Sessione scaduta")); }
+      xhr.status === 201 ? ok(d) : ko(new Error(typeof d.detail === "string" ? d.detail : "Errore " + xhr.status));
+    };
+    xhr.onerror = () => ko(new Error("Server non raggiungibile"));
+    $(barra).value = 0; $(barra).hidden = false;
+    xhr.send(dati);
+  }).finally(() => { $(barra).hidden = true; });
+}
+function credenziali(p) {
+  $("cred-nome").textContent = nomeCompleto(p); $("cred-utente").textContent = p.username; $("cred-password").textContent = p.password;
+  $("cred-copia").textContent = "Copia"; $("cred").hidden = false;
+}
+$("cred-chiudi").onclick = () => { $("cred").hidden = true; $("cred-password").textContent = ""; };
+$("cred-copia").onclick = async () => {
+  try { await navigator.clipboard.writeText(`Utente: ${$("cred-utente").textContent}\nPassword: ${$("cred-password").textContent}`); $("cred-copia").textContent = "Copiato"; }
+  catch (e) { $("cred-copia").textContent = "Seleziona e copia a mano"; }
+};
+document.addEventListener("click", e => { const b = e.target.closest("[data-chiudi]"); if (b) { e.preventDefault(); $(b.dataset.chiudi).hidden = true; } });
+
+// ---------- Disegno ----------
+const ordineRuolo = r => { const i = ruoli.findIndex(x => x.sigla === r); return i < 0 ? 999 : i; };
+const ordina = ps => [...ps].sort((a, b) => ordineRuolo(a.ruolo) - ordineRuolo(b.ruolo) || a.cognome.localeCompare(b.cognome));
+
+function disegna() {
+  const c = scheda.cantiere;
+  document.title = c.nome + " · ARworksite";
+  $("nome").textContent = c.nome;
+  $("numeri").innerHTML = `<span class="num">DL <b>${c.direttore_lavori ? esc(nomeCompleto(c.direttore_lavori)) : "—"}</b></span>
+    <span class="num"><b>${c.squadra.length}</b> in squadra</span><span class="num"><b>${scheda.appartamenti.length}</b> appartamenti</span>
+    <span class="num"><b>${scheda.attivita.length}</b> attività</span>`;
+
+  // squadra
+  $("n-squadra").textContent = c.squadra.length;
+  $("squadra").innerHTML = c.squadra.length ? c.squadra.map(m => chip(m, m.ruolo === "DL" ? "dl" : "", `data-togli-squadra="${m.id}"`)).join("")
+                                           : `<p class="vuoto">Nessuno in squadra.</p>`;
+  const dentro = new Set(c.squadra.map(m => m.id));
+  const fuori = ordina(persone.filter(p => !dentro.has(p.id)));
+  $("sq-scelta").innerHTML = `<option value="">— scegli —</option>` + fuori.map(p => `<option value="${p.id}">${esc(p.ruolo)} · ${esc(nomeCompleto(p))}</option>`).join("");
+  $("np-ruolo").innerHTML = ruoli.map(r => `<option value="${r.sigla}" ${r.sigla === "CC" ? "selected" : ""}>${r.sigla} · ${esc(r.nome)}</option>`).join("");
+
+  // piante e appartamenti
+  $("piante").innerHTML = scheda.piante.length
+    ? `<span class="vuoto">Piante:</span>` + scheda.piante.map(p => `<a class="pianta" href="${p.url_download.replace(/^https?:\/\/[^/]+/, "")}" title="Scarica"><span class="sigla">${p.formato.toUpperCase()}</span>${esc(p.nome)} <small class="vuoto">${kb(p.dimensione)}</small></a>`).join("")
+    : `<span class="vuoto">Nessuna pianta per questo cantiere (cartella data/piante/${esc(scheda.cartella_piante)}).</span>`;
+  $("avvisi").innerHTML = scheda.piante_non_lette.map(x => `<li>${esc(x.nome)}: ${esc(x.motivo)}</li>`).join("");
+  $("n-app").textContent = scheda.appartamenti.length;
+  const clienti = ordina(persone.filter(p => p.ruolo === "CL"));
+  $("appartamenti").innerHTML = scheda.appartamenti.length ? scheda.appartamenti.map(a => {
+    const gia = new Set(a.committenti.map(p => p.id));
+    const scelte = clienti.filter(p => !gia.has(p.id));
+    if (a.origine === "comune") return `<div class="app comune" data-app="${a.id}">
+      <div class="app-testa"><b>${esc(a.nome)}</b><small title="${esc(a.pianta || "")}">${a.pianta ? esc(a.pianta) : "nessuna planimetria"}</small></div>
+      <span class="tutta-pianta">${a.pianta ? "Tutta la planimetria: vale per tutti i suoi appartamenti" : "Tutto il cantiere (finché non c'è una planimetria)"}</span>
+      <span class="badge">${a.n_attivita ? a.n_attivita + " attività" : "Nessuna attività"}</span>
+      <div class="raccolta">${a.raccolta.n_file
+        ? `<span>Dati raccolti: ${a.raccolta.n_file} file · ${kb(a.raccolta.dimensione)}</span><button class="secondario" data-vedi-raccolta>Vedi</button>`
+        : `<span>Nessun dato raccolto dal telefono</span>`}</div>
+    </div>`;
+    return `<div class="app" data-app="${a.id}">
+      <div class="app-testa"><b>${esc(a.nome)}</b><small title="${esc(a.pianta || "")}">${a.pianta ? esc(a.pianta) : "aggiunto a mano"}</small>
+        ${a.origine === "manuale" ? `<button class="leggero" data-elimina-app title="Elimina">Elimina</button>` : ""}</div>
+      ${a.etichetta ? `<span class="etichetta">Nella pianta: «${esc(a.etichetta)}»</span>` : ""}
+      <p class="committ">Committenti</p>
+      <div class="chips">${a.committenti.length ? a.committenti.map(p => chip(p, "cl", `data-togli-committente="${p.id}"`)).join("") : `<span class="vuoto">nessuno</span>`}</div>
+      <div class="agg"><select data-scelta-committente><option value="">+ Committente…</option>${scelte.map(p => `<option value="${p.id}">${esc(nomeCompleto(p))}</option>`).join("")}<option value="nuovo">Nuovo committente…</option></select></div>
+      <span class="badge">${a.n_attivita ? a.n_attivita + (a.n_attivita === 1 ? " attività" : " attività") : "Nessuna attività"}</span>
+      <div class="raccolta">${a.raccolta.n_file
+        ? `<span>Dati raccolti: ${a.raccolta.n_file} file · ${kb(a.raccolta.dimensione)} · ${new Date(a.raccolta.aggiornato).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}</span><button class="secondario" data-vedi-raccolta>Vedi</button>`
+        : `<span>Nessun dato raccolto dal telefono</span>`}</div>
+    </div>`;
+  }).join("") : `<p class="vuoto">Nessun appartamento: carica la pianta DXF del cantiere o aggiungili a mano.</p>`;
+
+  // attività
+  $("n-att").textContent = scheda.attivita.length;
+  // un'attività è sempre di un appartamento o dello spazio comune di una planimetria (= tutta la planimetria)
+  const perPianta = {};
+  for (const a of scheda.appartamenti) (perPianta[a.pianta || ""] ||= []).push(a);
+  const voceApp = a => `<option value="${a.id}">${a.origine === "comune" ? "Spazio comune · tutta la planimetria" : esc(a.nome)}</option>`;
+  const scelto = $("nt-app").value;
+  $("nt-app").innerHTML = `<option value="">Scegli…</option>` + Object.entries(perPianta).map(([pianta, aps]) =>
+    `<optgroup label="${esc(pianta ? pianta.replace(/\.(dxf|dwg)$/i, "") : "Senza planimetria")}">${aps.map(voceApp).join("")}</optgroup>`).join("");
+  if (scelto) $("nt-app").value = scelto;
+  const squadra = ordina(c.squadra);
+  const voce = p => `<label title="${esc(p.ruolo_nome || "")}"><input type="checkbox" value="${p.id}"><span class="sigla">${esc(p.ruolo)}</span>${esc(nomeCompleto(p))}</label>`;
+  $("nt-persone").innerHTML = squadra.length ? squadra.map(voce).join("")
+    : `<span class="sep">Nessuno in squadra: aggiungi prima le persone nella sezione Squadra.</span>`;
+  const conta = st => scheda.attivita.filter(a => !st || a.stato === st).length;
+  $("filtri").innerHTML = scheda.attivita.length ? [["", "Tutte"], ["aperta", "Aperte"], ["presa_in_carico", "Prese in carico"], ["da_verificare", "Da verificare"], ["chiusa", "Chiuse"]].map(([k, n]) =>
+    `<button type="button" data-filtro="${k}" class="${filtroStato === k ? "att" : ""}">${n} · ${conta(k)}</button>`).join("") : "";
+  const visibili = scheda.attivita.filter(a => !filtroStato || a.stato === filtroStato);
+  const ultimo = a => { const u = a.storico_stati[a.storico_stati.length - 1]; if (!u) return "";
+    if (u.stato === "presa_in_carico" && a.in_carico && !u.nota) return "";  // già detto da «In carico a…»
+    return `<div class="ultimo">${esc(u.stato_nome)} · ${esc(u.chi)}, ${new Date(u.quando).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}${u.nota ? ` — «${esc(u.nota)}»` : ""}</div>`; };
+  $("attivita").innerHTML = visibili.length ? visibili.map(a => `<div class="ratt ${a.stato}" data-att="${a.id}">
+      <div class="corpo"><h4>${esc(a.titolo)} ${a.appartamento ? `<span class="badge">${esc(nomeApp(a.appartamento.id, a.appartamento.nome))}</span>` : ""}
+        ${a.allegati.length ? `<span class="badge">${a.allegati.length} allegat${a.allegati.length === 1 ? "o" : "i"}</span>` : ""}</h4>
+        ${a.descrizione ? `<p>${esc(a.descrizione)}</p>` : ""}
+        <div class="chips">${a.assegnatari.length ? a.assegnatari.map(p => chip(p)).join("") : `<span class="vuoto" style="color:var(--err)">Non assegnata</span>`}</div>
+        ${a.allegati.length ? `<div class="allegati">${a.allegati.map(f => `<a href="${esc(f.url_download)}?inline=true" target="_blank" rel="noopener" title="${esc(f.riferimento || "")}">${f.tipo === "foto" ? "🖼" : f.tipo === "scansione3d" ? "🧊" : "📄"} ${esc(f.nome)}</a><span>${esc(f.chi)}</span>`).join("")}</div>` : ""}
+        ${a.in_carico ? `<div class="incarico">In carico a ${esc(a.in_carico.chi)} dal ${new Date(a.in_carico.quando).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}</div>` : ""}
+        ${ultimo(a)}
+        <button type="button" class="apri-note" data-apri-note aria-expanded="${noteAperte.has(a.id)}">${noteAperte.has(a.id) ? "▾" : "▸"} Note e storico (${contaNote(a)})</button></div>
+      <div class="lato"><select class="stato ${a.stato}" data-stato aria-label="Stato">${Object.entries(STATI).map(([k, n]) => `<option value="${k}"${k === a.stato ? " selected" : ""}>${n}</option>`).join("")}</select>
+      <span class="data">${new Date(a.creata).toLocaleDateString("it-IT")}</span></div>
+      ${noteAperte.has(a.id) ? cronologia(a) : ""}</div>`).join("")
+    : scheda.attivita.length ? `<p class="vuoto">Nessuna attività «${STATI[filtroStato]}».</p>`
+    : `<p class="vuoto">Nessuna attività per questo cantiere.</p>`;
+}
+
+async function ricarica() {
+  try {
+    [ruoli, persone, scheda] = await Promise.all([api("GET", "/api/ruoli"), api("GET", "/api/persone"), api("GET", `/api/cantieri/${ID}/scheda`)]);
+    disegna();
+  } catch (e) { $("nome").textContent = e.message; }
+}
+
+// ---------- Squadra ----------
+$("sq-aggiungi").onclick = async () => {
+  const pid = Number($("sq-scelta").value); if (!pid) return;
+  try { await api("POST", `/api/cantieri/${ID}/squadra`, { persona_id: pid }); msg("msg-squadra", "Aggiunto alla squadra.", "ok"); ricarica(); }
+  catch (e) { msg("msg-squadra", e.message, "err"); }
+};
+$("squadra").onclick = async e => {
+  const b = e.target.closest("[data-togli-squadra]"); if (!b) return;
+  const m = scheda.cantiere.squadra.find(x => x.id === Number(b.dataset.togliSquadra));
+  if (!confirm(`Togliere ${nomeCompleto(m)} dalla squadra di ${scheda.cantiere.nome}?\nNon sarà più assegnato alle attività di questo cantiere.`)) return;
+  try { await api("DELETE", `/api/cantieri/${ID}/squadra/${m.id}`); msg("msg-squadra", `${nomeCompleto(m)} tolto dalla squadra.`, "ok"); ricarica(); }
+  catch (err) { msg("msg-squadra", err.message, "err"); }
+};
+$("apri-nuova-persona").onclick = () => { $("pann-persona").hidden = false; $("np-nome").focus(); };
+$("np-crea").onclick = async () => {
+  try {
+    const p = await api("POST", "/api/persone", { nome: $("np-nome").value, cognome: $("np-cognome").value, ruolo: $("np-ruolo").value });
+    await api("POST", `/api/cantieri/${ID}/squadra`, { persona_id: p.id });
+    $("np-nome").value = $("np-cognome").value = ""; $("pann-persona").hidden = true;
+    credenziali(p); msg("msg-squadra", `${nomeCompleto(p)} creato e aggiunto alla squadra.`, "ok"); ricarica();
+  } catch (e) { msg("msg-squadra", e.message, "err"); }
+};
+
+// ---------- Piante e appartamenti ----------
+const drop = $("drop-pianta");
+drop.onclick = () => $("file-pianta").click();
+drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); $("file-pianta").click(); } };
+["dragenter", "dragover"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add("over"); }));
+["dragleave", "drop"].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove("over"); }));
+drop.addEventListener("drop", e => caricaPiante([...e.dataTransfer.files]));
+$("file-pianta").onchange = e => { caricaPiante([...e.target.files]); e.target.value = ""; };
+async function caricaPiante(files) {
+  files = files.filter(f => /\.(dxf|dwg)$/i.test(f.name));
+  if (!files.length) { msg("msg-app", "Sono ammessi solo file .dxf e .dwg", "err"); return; }
+  const prima = scheda.appartamenti.length;
+  try {
+    let r;
+    try { r = await invia(`/api/cantieri/${ID}/piante`, files, "avanz-pianta"); }
+    catch (e) {
+      if (!/già tra le piante/.test(e.message) || !confirm(e.message + ".\nSostituirla con quella nuova?")) throw e;
+      r = await invia(`/api/cantieri/${ID}/piante`, files, "avanz-pianta", { sostituisci: "true" });
+    }
+    const nuovi = r.appartamenti.length - prima;
+    msg("msg-app", `Pianta caricata. ${nuovi > 0 ? nuovi + " appartament" + (nuovi === 1 ? "o nuovo" : "i nuovi") + " letti dalla pianta." : "Nessun appartamento nuovo."}`, "ok");
+    ricarica();
+  } catch (e) { msg("msg-app", e.message, "err"); }
+}
+$("apri-nuovo-app").onclick = () => { $("pann-app").hidden = false; $("na-nome").focus(); };
+$("na-crea").onclick = async () => {
+  try { const a = await api("POST", `/api/cantieri/${ID}/appartamenti`, { nome: $("na-nome").value }); $("na-nome").value = ""; $("pann-app").hidden = true; msg("msg-app", `${a.nome} aggiunto.`, "ok"); ricarica(); }
+  catch (e) { msg("msg-app", e.message, "err"); }
+};
+$("appartamenti").onclick = async e => {
+  const box = e.target.closest("[data-app]"); if (!box) return;
+  const a = scheda.appartamenti.find(x => x.id === Number(box.dataset.app));
+  try {
+    if (e.target.closest("[data-togli-committente]")) {
+      const p = a.committenti.find(x => x.id === Number(e.target.closest("[data-togli-committente]").dataset.togliCommittente));
+      if (!confirm(`Togliere ${nomeCompleto(p)} dai committenti di ${a.nome}?`)) return;
+      await api("DELETE", `/api/appartamenti/${a.id}/committenti/${p.id}`); msg("msg-app", `${nomeCompleto(p)} tolto da ${a.nome}.`, "ok"); ricarica();
+    } else if (e.target.closest("[data-vedi-raccolta]")) {
+      await mostraRaccolta(a);
+    } else if (e.target.closest("[data-elimina-app]")) {
+      if (!confirm(`Eliminare ${a.nome}?`)) return;
+      await api("DELETE", `/api/appartamenti/${a.id}`); msg("msg-app", `${a.nome} eliminato.`, "ok"); ricarica();
+    }
+  } catch (err) { msg("msg-app", err.message, "err"); }
+};
+$("appartamenti").onchange = async e => {
+  const sel = e.target.closest("[data-scelta-committente]"); if (!sel || !sel.value) return;
+  const a = scheda.appartamenti.find(x => x.id === Number(sel.closest("[data-app]").dataset.app));
+  if (sel.value === "nuovo") {
+    committentePer = a; sel.value = "";
+    $("nc-per").textContent = `Nuovo committente per ${a.nome} (ruolo CL · Cliente / committente)`;
+    $("pann-committente").hidden = false; $("nc-nome").focus(); return;
+  }
+  try { await api("POST", `/api/appartamenti/${a.id}/committenti`, { persona_id: Number(sel.value) }); msg("msg-app", `Committente aggiunto a ${a.nome}.`, "ok"); ricarica(); }
+  catch (err) { msg("msg-app", err.message, "err"); }
+};
+$("nc-crea").onclick = async () => {
+  try {
+    const p = await api("POST", "/api/persone", { nome: $("nc-nome").value, cognome: $("nc-cognome").value, ruolo: "CL" });
+    await api("POST", `/api/appartamenti/${committentePer.id}/committenti`, { persona_id: p.id });
+    $("nc-nome").value = $("nc-cognome").value = ""; $("pann-committente").hidden = true;
+    credenziali(p); msg("msg-app", `${nomeCompleto(p)} è committente di ${committentePer.nome}.`, "ok"); ricarica();
+  } catch (e) { msg("msg-app", e.message, "err"); }
+};
+
+async function mostraRaccolta(a) {
+  const r = await api("GET", `/api/appartamenti/${a.id}/raccolta`);
+  const gruppi = {};
+  for (const f of r.file) { const parti = f.percorso.split("/"); const g = parti.length > 1 ? parti.slice(0, Math.min(2, parti.length - 1)).join(" › ") : "Appartamento"; (gruppi[g] ||= []).push(f); }
+  $("rc-titolo").textContent = `Dati raccolti in ${a.nome} · ${r.file.length} file`;
+  $("rc-elenco").innerHTML = Object.entries(gruppi).map(([g, fs]) => `<div class="rc-gruppo"><h5>${esc(g)}</h5>${fs.map(f =>
+    `<div class="rc-file"><a href="${esc(f.url_download)}?inline=true" target="_blank" rel="noopener">${esc(f.percorso)}</a><span>${kb(f.dimensione)}</span><span>${esc(f.chi)}</span><span>${new Date(f.caricato).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" })}</span></div>`).join("")}</div>`).join("");
+  $("pann-raccolta").hidden = false; $("pann-raccolta").scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// ---------- Attività ----------
+const quando = t => new Date(t).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+const contaNote = a => a.note.length + a.storico_stati.filter(x => x.nota).length;
+function cronologia(a) {
+  // creazione, cambi di stato (con la loro nota) e note libere, dalla più vecchia
+  const ev = [{ t: a.creata, ord: 0, html: `<span class="chi">Attività creata</span>` }]
+    .concat(a.storico_stati.map((x, i) => ({ t: x.quando, ord: 1 + i, html:
+      `<span><span class="chi">${esc(x.chi)}</span> → <span class="mini ${x.stato}">${esc(x.stato_nome)}</span></span>` +
+      (x.nota ? `<div class="testo">${esc(x.nota)}</div>` : "") })))
+    .concat(a.note.map(n => ({ t: n.quando, ord: 1000 + n.id, nota: true, html:
+      `<span class="chi">${esc(n.chi)}</span><div class="testo">${esc(n.testo)}</div>` })))
+    .sort((x, y) => x.t < y.t ? -1 : x.t > y.t ? 1 : x.ord - y.ord);
+  return `<div class="cronologia">${ev.map(e => `<div class="evento${e.nota ? " nota" : ""}"><span class="quando">${quando(e.t)}</span>${e.html}</div>`).join("")}
+    <form class="nuova-nota" data-nuova-nota><textarea rows="1" maxlength="2000" placeholder="Scrivi una nota…" data-bozza>${esc(bozzeNote[a.id] || "")}</textarea><button type="submit">Aggiungi nota</button></form></div>`;
+}
+$("attivita").addEventListener("click", e => {
+  const b = e.target.closest("[data-apri-note]"); if (!b) return;
+  const id = Number(b.closest("[data-att]").dataset.att);
+  noteAperte.has(id) ? noteAperte.delete(id) : noteAperte.add(id); disegna();
+  if (noteAperte.has(id)) document.querySelector(`[data-att="${id}"] [data-bozza]`)?.focus();
+});
+$("attivita").addEventListener("input", e => {
+  if (e.target.matches("[data-bozza]")) bozzeNote[Number(e.target.closest("[data-att]").dataset.att)] = e.target.value;
+});
+$("attivita").addEventListener("submit", async e => {
+  const f = e.target.closest("[data-nuova-nota]"); if (!f) return;
+  e.preventDefault();
+  const id = Number(f.closest("[data-att]").dataset.att), testo = f.querySelector("textarea").value.trim();
+  if (!testo) return;
+  f.querySelector("button").disabled = true;
+  try { await api("POST", `/api/attivita/${id}/note`, { testo }); delete bozzeNote[id]; await ricarica(); }
+  catch (err) { msg("msg-att", err.message, "err"); f.querySelector("button").disabled = false; }
+});
+function nomeApp(id, nome) {
+  const ap = scheda.appartamenti.find(x => x.id === id);
+  const piante = new Set(scheda.appartamenti.map(x => x.pianta));
+  if (ap && ap.origine === "comune" && piante.size > 1 && ap.pianta) return `${nome} · ${ap.pianta.replace(/\.(dxf|dwg)$/i, "")}`;
+  return nome;
+}
+$("filtri").onclick = e => { const b = e.target.closest("[data-filtro]"); if (!b) return; filtroStato = b.dataset.filtro; disegna(); };
+$("attivita").onchange = async e => {
+  const sel = e.target.closest("[data-stato]"); if (!sel) return;
+  const a = scheda.attivita.find(x => x.id === Number(sel.closest("[data-att]").dataset.att));
+  let nota = "";
+  if (sel.value === "aperta" && a.stato !== "aperta") {
+    nota = prompt(`Riaprire «${a.titolo}»? Scrivi il motivo (facoltativo):`, "");
+    if (nota === null) { sel.value = a.stato; return; }
+  }
+  try { await api("POST", `/api/attivita/${a.id}/stato`, { stato: sel.value, nota });
+        msg("msg-att", `«${a.titolo}»: ${STATI[sel.value]}.`, "ok"); ricarica(); }
+  catch (err) { sel.value = a.stato; msg("msg-att", err.message, "err"); }
+};
+$("apri-nuova-att").onclick = () => { $("pann-att").hidden = false; $("nt-titolo").focus(); };
+$("pann-att").onsubmit = async e => {
+  e.preventDefault();
+  const persone_ids = [...$("nt-persone").querySelectorAll("input:checked")].map(i => Number(i.value));
+  if (!persone_ids.length && !confirm("Non hai assegnato l'attività a nessuno. Crearla lo stesso?")) return;
+  const files = [...$("nt-file").files];
+  if (files.some(f => VIETATE.test(f.name))) { msg("msg-att", "Programmi e pagine web non sono ammessi come allegati.", "err"); return; }
+  $("nt-crea").disabled = true;
+  try {
+    const a = await api("POST", "/api/attivita", { titolo: $("nt-titolo").value, descrizione: $("nt-descr").value, cantiere_id: ID,
+      appartamento_id: Number($("nt-app").value), persone_ids });
+    let nota = "";
+    if (files.length) { try { await invia(`/api/attivita/${a.id}/allegati`, files, "avanz-att"); } catch (err) { nota = ` Allegati non caricati: ${err.message}.`; } }
+    $("pann-att").reset(); $("pann-att").hidden = true;
+    msg("msg-att", `Attività «${a.titolo}» creata.` + nota, nota ? "err" : "ok"); ricarica();
+  } catch (err) { msg("msg-att", err.message, "err"); }
+  finally { $("nt-crea").disabled = false; }
+};
+
+ricarica();
+</script>
+</body>
+</html>

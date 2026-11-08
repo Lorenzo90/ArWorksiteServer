@@ -87,6 +87,8 @@ class Cantiere(BaseModel):
     creato: str
     direttore_lavori: Optional[Membro]
     squadra: list[Membro]
+    n_appartamenti: int = 0
+    n_attivita: int = 0
 
 
 def _verifica_ruolo(sigla: str) -> str:
@@ -183,9 +185,12 @@ def crea_cantiere(dati: CantiereIn):
             raise HTTPException(status_code=400,
                                 detail=f"{p['nome']} {p['cognome']} non ha il ruolo Direttore dei lavori")
     try:
-        return db.crea_cantiere(dati.nome, dl_id)
+        c = db.crea_cantiere(dati.nome, dl_id)
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409, detail=f"Esiste già un cantiere chiamato «{dati.nome}»")
+    from . import appartamenti  # spazio comune (e appartamenti, se ci sono già piante nella cartella)
+    appartamenti.sincronizza(c["id"])
+    return db.leggi_cantiere(c["id"])
 
 
 @router.patch("/cantieri/{id_cantiere}", response_model=Cantiere, tags=["cantieri"])

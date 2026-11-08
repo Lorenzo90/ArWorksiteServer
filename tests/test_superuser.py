@@ -58,16 +58,26 @@ def test_api_di_gestione_solo_superuser():
     assert su.get("/openapi.json").json()["info"]["title"] == "ARworksite Server"
 
 
-def test_app_legge_le_piante_con_il_suo_token():
+def test_app_legge_le_piante_con_il_suo_token(tmp_path):
+    (tmp_path / "piante" / "Lungo Avisio").mkdir()
+    (tmp_path / "piante" / "Lungo Avisio" / "b.dxf").write_text("0\nEOF\n")
     su = client_superuser()
+    assert su.get("/api/piante").json()["totale"] == 2  # il superuser vede tutto
     nuovo = su.post("/api/persone", json={"nome": "Anna", "cognome": "Gialli", "ruolo": "CC"}).json()
     app_client = TestClient(app)
     assert app_client.get("/api/piante").status_code == 401
     token = app_client.post("/api/login", json={"username": "anna.gialli", "password": nuovo["password"]}).json()["token"]
     h = {"Authorization": f"Bearer {token}"}
+    tutte = {p["nome"]: p for p in su.get("/api/piante").json()["piante"]}
+    # senza cantieri assegnati non vede né scarica niente
+    assert app_client.get("/api/piante", headers=h).json()["totale"] == 0
+    assert app_client.get(tutte["b.dxf"]["url_download"], headers=h).status_code == 404
+    avisio = next(c for c in su.get("/api/cantieri").json() if c["nome"] == "Lungo Avisio")
+    su.post(f"/api/cantieri/{avisio['id']}/squadra", json={"persona_id": nuovo["id"]})
     elenco = app_client.get("/api/piante", headers=h)
-    assert elenco.status_code == 200 and elenco.json()["totale"] == 1
+    assert elenco.status_code == 200 and [p["nome"] for p in elenco.json()["piante"]] == ["b.dxf"]
     assert app_client.get(elenco.json()["piante"][0]["url_download"], headers=h).status_code == 200
+    assert app_client.get(tutte["a.dxf"]["url_download"], headers=h).status_code == 404
     # il token dell'app non apre la gestione
     assert app_client.get("/api/persone", headers=h).status_code == 401
     assert app_client.post("/api/piante", headers=h, files=[("file", ("c.dxf", b"x", "x/y"))]).status_code == 401

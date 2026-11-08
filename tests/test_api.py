@@ -97,4 +97,5 @@ def test_caricamento_con_chiave(client, monkeypatch):
 def test_pagina(client):
     r = client.get("/")
     assert r.status_code == 200
-    assert "Aggiungi piante" in r.text and '"cantieri": ["Cantiere A"]' in r.text
+    assert "Nuovo cantiere" in r.text
+    assert "Piante</a>" not in r.text and 'href="/attivita"' not in r.text

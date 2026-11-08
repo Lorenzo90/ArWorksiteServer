@@ -22,6 +22,23 @@ def nuova_persona(su, nome, cognome, ruolo="CC"):
     return su.post("/api/persone", json={"nome": nome, "cognome": cognome, "ruolo": ruolo}).json()
 
 
+def avisio(su):
+    return next(c for c in su.get("/api/cantieri").json() if c["nome"] == "Lungo Avisio")
+
+
+def in_squadra(su, *persone, cantiere=None):
+    cid = (cantiere or avisio(su))["id"]
+    for p in persone:
+        assert su.post(f"/api/cantieri/{cid}/squadra", json={"persona_id": p["id"]}).status_code == 200
+    return cid
+
+
+def sc(su, cid=None):
+    """Spazio comune del cantiere (senza planimetrie è quello generico): ogni attività ne ha uno."""
+    cid = cid or avisio(su)["id"]
+    return next(a["id"] for a in su.get(f"/api/cantieri/{cid}/scheda").json()["appartamenti"] if a["origine"] == "comune")
+
+
 def entra_app(nome_utente, password):
     c = TestClient(app)
     r = c.post("/api/login", json={"username": nome_utente, "password": password})
@@ -31,9 +48,9 @@ def entra_app(nome_utente, password):
 
 def test_crea_assegna_e_allegati(su, tmp_path):
     anna, bruno = nuova_persona(su, "Anna", "Gialli"), nuova_persona(su, "Bruno", "Blu", "EL")
-    avisio = next(c for c in su.get("/api/cantieri").json() if c["nome"] == "Lungo Avisio")
+    cid = in_squadra(su, anna, bruno)
     r = su.post("/api/attivita", json={"titolo": "  Verifica   tracce ", "descrizione": "Bagno e cucina\nentro venerdì",
-                                       "cantiere_id": avisio["id"], "persone_ids": [anna["id"], bruno["id"], anna["id"]]})
+                                       "appartamento_id": sc(su, cid), "persone_ids": [anna["id"], bruno["id"], anna["id"]]})
     assert r.status_code == 201, r.text
     a = r.json()
     assert a["titolo"] == "Verifica tracce" and a["cantiere"]["nome"] == "Lungo Avisio"
@@ -53,7 +70,9 @@ def test_crea_assegna_e_allegati(su, tmp_path):
 def test_le_persone_assegnate_la_ricevono_al_login(su):
     anna, bruno, carla = (nuova_persona(su, "Anna", "Gialli"), nuova_persona(su, "Bruno", "Blu"),
                           nuova_persona(su, "Carla", "Viola"))
-    a = su.post("/api/attivita", json={"titolo": "Foto pareti", "persone_ids": [anna["id"], bruno["id"]]}).json()
+    cid = in_squadra(su, anna, bruno, carla)
+    a = su.post("/api/attivita", json={"titolo": "Foto pareti", "appartamento_id": sc(su, cid),
+                                       "persone_ids": [anna["id"], bruno["id"]]}).json()
     su.post(f"/api/attivita/{a['id']}/allegati", files=[("file", ("p.png", b"\x89PNGx", "image/png"))])
 
     _, d, _ = entra_app("anna.gialli", anna["password"])
@@ -68,7 +87,8 @@ def test_le_persone_assegnate_la_ricevono_al_login(su):
 
 def test_download_solo_per_chi_e_assegnato(su):
     anna, carla = nuova_persona(su, "Anna", "Gialli"), nuova_persona(su, "Carla", "Viola")
-    a = su.post("/api/attivita", json={"titolo": "X", "persone_ids": [anna["id"]]}).json()
+    cid = in_squadra(su, anna, carla)
+    a = su.post("/api/attivita", json={"titolo": "X", "appartamento_id": sc(su, cid), "persone_ids": [anna["id"]]}).json()
     f = su.post(f"/api/attivita/{a['id']}/allegati",
                 files=[("file", ("m.glb", b"glTFdati", "x/y"))]).json()["caricati"][0]
     url = f["url_download"]
@@ -87,13 +107,13 @@ def test_download_solo_per_chi_e_assegnato(su):
 
 def test_modifica_assegnatari(su):
     anna, bruno = nuova_persona(su, "Anna", "Gialli"), nuova_persona(su, "Bruno", "Blu")
-    a = su.post("/api/attivita", json={"titolo": "X", "persone_ids": [anna["id"]],
-                                       "cantiere_id": su.get("/api/cantieri").json()[0]["id"]}).json()
+    cid = in_squadra(su, anna, bruno)
+    a = su.post("/api/attivita", json={"titolo": "X", "persone_ids": [anna["id"]], "appartamento_id": sc(su, cid)}).json()
     r = su.patch(f"/api/attivita/{a['id']}", json={"persone_ids": [bruno["id"]], "titolo": "Y"})
     assert [p["nome"] for p in r.json()["assegnatari"]] == ["Bruno"] and r.json()["titolo"] == "Y"
-    assert r.json()["cantiere"] is not None  # non toccato
-    r = su.patch(f"/api/attivita/{a['id']}", json={"cantiere_id": None})
-    assert r.json()["cantiere"] is None
+    assert r.json()["cantiere"]["id"] == cid  # non toccato
+    # l'appartamento non si toglie
+    assert su.patch(f"/api/attivita/{a['id']}", json={"appartamento_id": None}).status_code == 400
     _, d, _ = entra_app("anna.gialli", anna["password"])
     assert d["attivita"] == []
     assert su.patch(f"/api/attivita/{a['id']}", json={"persone_ids": [999]}).status_code == 400
@@ -101,8 +121,9 @@ def test_modifica_assegnatari(su):
 
 def test_validazioni(su):
     assert su.post("/api/attivita", json={"titolo": "  "}).status_code == 422
-    assert su.post("/api/attivita", json={"titolo": "X", "cantiere_id": 999}).status_code == 400
-    a = su.post("/api/attivita", json={"titolo": "X"}).json()
+    assert su.post("/api/attivita", json={"titolo": "X", "appartamento_id": 999}).status_code == 400
+    assert su.post("/api/attivita", json={"titolo": "X"}).status_code == 422  # serve l'appartamento
+    a = su.post("/api/attivita", json={"titolo": "X", "appartamento_id": sc(su)}).json()
     for nome in ("virus.exe", "pagina.html", "script.BAT"):
         assert su.post(f"/api/attivita/{a['id']}/allegati", files=[("file", (nome, b"x", "x/y"))]).status_code == 400
     assert su.post(f"/api/attivita/{a['id']}/allegati", files=[("file", ("vuoto.jpg", b"", "x/y"))]).status_code == 400
@@ -112,7 +133,7 @@ def test_validazioni(su):
 
 
 def test_elimina_allegato_e_attivita(su, tmp_path):
-    a = su.post("/api/attivita", json={"titolo": "X"}).json()
+    a = su.post("/api/attivita", json={"titolo": "X", "appartamento_id": sc(su)}).json()
     caricati = su.post(f"/api/attivita/{a['id']}/allegati",
                        files=[("file", ("a.jpg", b"1", "x/y")), ("file", ("b.jpg", b"2", "x/y"))]).json()["caricati"]
     cartella = tmp_path / "attivita" / str(a["id"])
@@ -126,7 +147,8 @@ def test_elimina_allegato_e_attivita(su, tmp_path):
 
 def test_persona_eliminata_esce_dalle_attivita(su):
     anna = nuova_persona(su, "Anna", "Gialli")
-    a = su.post("/api/attivita", json={"titolo": "X", "persone_ids": [anna["id"]]}).json()
+    a = su.post("/api/attivita", json={"titolo": "X", "appartamento_id": sc(su, in_squadra(su, anna)),
+                                       "persone_ids": [anna["id"]]}).json()
     su.delete(f"/api/persone/{anna['id']}")
     assert su.get(f"/api/attivita/{a['id']}").json()["assegnatari"] == []
 
@@ -138,9 +160,138 @@ def test_solo_superuser_gestisce(su):
     assert c.get("/api/attivita").status_code == 401
     assert c.post("/api/attivita", json={"titolo": "X"}, headers=h).status_code == 401
     assert c.get("/attivita", follow_redirects=False).status_code == 303
-    assert su.get("/attivita").status_code == 200
+    r = su.get("/attivita", follow_redirects=False)  # pagina tolta: rimanda ai cantieri
+    assert r.status_code == 303 and r.headers["location"] == "/cantieri"
 
 
 def test_tipo_da_nome():
     assert att.tipo_da_nome("A.HEIC") == "foto" and att.tipo_da_nome("x.glb") == "scansione3d"
     assert att.tipo_da_nome("pianta.dxf") == "file"
+
+
+def test_solo_persone_della_squadra(su):
+    anna, bruno = nuova_persona(su, "Anna", "Gialli"), nuova_persona(su, "Bruno", "Blu")
+    cid = in_squadra(su, anna)
+    r = su.post("/api/attivita", json={"titolo": "X", "appartamento_id": sc(su, cid), "persone_ids": [anna["id"], bruno["id"]]})
+    assert r.status_code == 400 and "Bruno Blu" in r.json()["detail"]
+    assert su.post("/api/attivita", json={"titolo": "X", "persone_ids": [anna["id"]]}).status_code == 422
+    a = su.post("/api/attivita", json={"titolo": "X", "appartamento_id": sc(su, cid), "persone_ids": [anna["id"]]}).json()
+    assert su.patch(f"/api/attivita/{a['id']}", json={"persone_ids": [bruno["id"]]}).status_code == 400
+    # spostarla in un cantiere dove Anna non c'è: rifiutato
+    altro = next(c for c in su.get("/api/cantieri").json() if c["nome"] == "Via Roma 12")
+    r = su.patch(f"/api/attivita/{a['id']}", json={"appartamento_id": sc(su, altro["id"])})
+    assert r.status_code == 400 and "Anna" in r.json()["detail"]
+    # chi esce dalla squadra perde le attività del cantiere
+    su.delete(f"/api/cantieri/{cid}/squadra/{anna['id']}")
+    assert su.get(f"/api/attivita/{a['id']}").json()["assegnatari"] == []
+
+
+def test_stato_aperta_da_verificare_chiusa(su):
+    anna, bruno = nuova_persona(su, "Anna", "Gialli", "EL"), nuova_persona(su, "Bruno", "Blu", "EL")
+    cid = in_squadra(su, anna, bruno)
+    a = su.post("/api/attivita", json={"titolo": "Tracce", "appartamento_id": sc(su, cid), "persone_ids": [anna["id"]]}).json()
+    assert a["stato"] == "aperta" and a["stato_nome"] == "Aperta" and a["storico_stati"] == []
+    c, _, h = entra_app("anna.gialli", anna["password"])
+    # l'operatore assegnato: non chiude senza prenderla in carico, non la mette da verificare
+    url = f"/api/mie-attivita/{a['id']}/stato"
+    assert c.post(url, json={"stato": "chiusa"}, headers=h).status_code == 403
+    assert c.post(url, json={"stato": "da_verificare"}, headers=h).status_code == 403
+    assert c.post(url, json={"stato": "finita"}, headers=h).status_code == 422
+    # la prende in carico e la chiude con una nota
+    assert c.post(url, json={"stato": "presa_in_carico"}, headers=h).status_code == 200
+    r = c.post(url, json={"stato": "chiusa", "nota": "Fatto, vedi foto"}, headers=h)
+    assert r.status_code == 200, r.text
+    assert r.json()["stato"] == "chiusa" and r.json()["storico_stati"][-1]["chi"] == "Anna Gialli"
+    assert c.post(url, json={"stato": "chiusa"}, headers=h).status_code == 409
+    # da chiusa non la riapre, non la rimette da verificare
+    assert c.post(url, json={"stato": "da_verificare"}, headers=h).status_code == 403
+    assert c.post(url, json={"stato": "aperta"}, headers=h).status_code == 403
+    # chi non è assegnato non la vede
+    c2, d2, h2 = entra_app("bruno.blu", bruno["password"])
+    assert d2["attivita"] == []
+    assert c2.post(f"/api/mie-attivita/{a['id']}/stato", json={"stato": "aperta"}, headers=h2).status_code == 404
+    # il DL della squadra (Mario Rossi) la riceve anche se non assegnato e la rimette da verificare
+    mario = persona(su, "Mario")
+    pw = su.post(f"/api/persone/{mario['id']}/password").json()["password"]
+    c3, d3, h3 = entra_app("mario.rossi", pw)
+    assert [x["titolo"] for x in d3["attivita"]] == ["Tracce"]
+    r = c3.post(url, json={"stato": "da_verificare", "nota": "Manca la presa"}, headers=h3)
+    assert r.status_code == 200 and r.json()["stato"] == "da_verificare"
+    # Anna la vede da verificare, ancora a suo nome, e la richiude
+    x = c.get("/api/miei-dati", headers=h).json()["attivita"][0]
+    assert x["stato"] == "da_verificare" and x["in_carico"]["chi"] == "Anna Gialli"
+    assert c.post(url, json={"stato": "chiusa", "nota": "Presa montata"}, headers=h).status_code == 200
+    # il superuser la riapre; lo storico tiene tutto
+    r = su.post(f"/api/attivita/{a['id']}/stato", json={"stato": "aperta", "nota": "Da rifare"})
+    assert [(x["stato"], x["chi"]) for x in r.json()["storico_stati"]] == [
+        ("presa_in_carico", "Anna Gialli"), ("chiusa", "Anna Gialli"), ("da_verificare", "Mario Rossi"),
+        ("chiusa", "Anna Gialli"), ("aperta", "Superuser")]
+    assert r.json()["storico_stati"][2]["nota"] == "Manca la presa"
+    assert c.get("/api/miei-dati", headers=h).json()["attivita"][0]["stato"] == "aperta"
+
+
+def test_migrazione_stato_attivita_esistenti(tmp_path, monkeypatch):
+    import sqlite3
+    from app import db
+    monkeypatch.setattr(config, "DB_PATH", tmp_path / "vecchio.db")
+    con = sqlite3.connect(tmp_path / "vecchio.db")
+    con.executescript("""CREATE TABLE attivita (id INTEGER PRIMARY KEY AUTOINCREMENT, titolo TEXT NOT NULL,
+        descrizione TEXT NOT NULL DEFAULT '', cantiere_id INTEGER, creata TEXT NOT NULL, modificata TEXT NOT NULL);
+        INSERT INTO attivita (titolo, creata, modificata) VALUES ('Vecchia', '2026-11-01', '2026-11-01');""")
+    con.commit(); con.close()
+    db.inizializza()
+    assert [(a["titolo"], a["stato"]) for a in att.elenco()] == [("Vecchia", "aperta")]
+
+
+def test_presa_in_carico(su):
+    anna, bruno = nuova_persona(su, "Anna", "Gialli", "EL"), nuova_persona(su, "Bruno", "Blu", "EL")
+    cid = in_squadra(su, anna, bruno)
+    a = su.post("/api/attivita", json={"titolo": "Tracce", "appartamento_id": sc(su, cid),
+                                       "persone_ids": [anna["id"], bruno["id"]]}).json()
+    assert a["in_carico"] is None
+    c, _, h = entra_app("anna.gialli", anna["password"])
+    url = f"/api/mie-attivita/{a['id']}/stato"
+    r = c.post(url, json={"stato": "presa_in_carico"}, headers=h)
+    assert r.status_code == 200, r.text
+    x = r.json()
+    assert x["stato"] == "presa_in_carico" and x["stato_nome"] == "Presa in carico" and x["in_carico"]["chi"] == "Anna Gialli"
+    # Bruno la vede già presa: non la riprende (stesso stato), non la chiude né la rilascia
+    c2, d2, h2 = entra_app("bruno.blu", bruno["password"])
+    assert d2["attivita"][0]["in_carico"]["chi"] == "Anna Gialli"
+    assert c2.post(url, json={"stato": "presa_in_carico"}, headers=h2).status_code == 409
+    r = c2.post(url, json={"stato": "chiusa"}, headers=h2)
+    assert r.status_code == 403 and "Anna Gialli" in r.json()["detail"]
+    assert c2.post(url, json={"stato": "aperta"}, headers=h2).status_code == 403
+    # rilascia → aperta, nessun incaricato; Bruno la prende e la chiude
+    x = c.post(url, json={"stato": "aperta"}, headers=h).json()
+    assert x["stato"] == "aperta" and x["in_carico"] is None
+    assert c2.post(url, json={"stato": "presa_in_carico"}, headers=h2).status_code == 200
+    x = c2.post(url, json={"stato": "chiusa"}, headers=h2).json()
+    # chiusa: in_carico non si mostra più
+    assert x["stato"] == "chiusa" and x["in_carico"] is None
+    # il superuser la rimette da verificare: torna a nome di Bruno, che la richiude
+    x = su.post(f"/api/attivita/{a['id']}/stato", json={"stato": "da_verificare"}).json()
+    assert x["in_carico"]["chi"] == "Bruno Blu"
+    assert c.post(url, json={"stato": "chiusa"}, headers=h).status_code == 403
+    assert c2.post(url, json={"stato": "chiusa"}, headers=h2).status_code == 200
+
+
+def test_note_e_storico(su):
+    anna, bruno = nuova_persona(su, "Anna", "Gialli", "EL"), nuova_persona(su, "Bruno", "Blu", "EL")
+    cid = in_squadra(su, anna, bruno)
+    a = su.post("/api/attivita", json={"titolo": "Tracce", "appartamento_id": sc(su, cid), "persone_ids": [anna["id"]]}).json()
+    assert a["note"] == []
+    c, _, h = entra_app("anna.gialli", anna["password"])
+    r = c.post(f"/api/mie-attivita/{a['id']}/note", json={"testo": "  Serve la scala alta  "}, headers=h)
+    assert r.status_code == 201 and r.json()["stato"] == "aperta"
+    assert [(n["chi"], n["testo"]) for n in r.json()["note"]] == [("Anna Gialli", "Serve la scala alta")]
+    x = su.post(f"/api/attivita/{a['id']}/note", json={"testo": "Scala in magazzino"}).json()
+    assert [n["chi"] for n in x["note"]] == ["Anna Gialli", "Superuser"]
+    assert su.post(f"/api/attivita/{a['id']}/note", json={"testo": " "}).status_code == 422
+    # chi non vede l'attività non scrive note
+    c2, _, h2 = entra_app("bruno.blu", bruno["password"])
+    assert c2.post(f"/api/mie-attivita/{a['id']}/note", json={"testo": "x"}, headers=h2).status_code == 404
+    # le note arrivano all'app; quelle dei cambi di stato restano nello storico
+    c.post(f"/api/mie-attivita/{a['id']}/stato", json={"stato": "presa_in_carico", "nota": "Comincio domani"}, headers=h)
+    d = c.get("/api/miei-dati", headers=h).json()["attivita"][0]
+    assert len(d["note"]) == 2 and d["storico_stati"][-1]["nota"] == "Comincio domani"

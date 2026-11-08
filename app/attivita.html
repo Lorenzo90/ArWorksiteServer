@@ -290,7 +290,7 @@ function disegnaElenco() {
   $("n-attivita").textContent = lista.length;
   if (!lista.length) { $("elenco").innerHTML = `<p class="vuoto">${filtro ? "Nessuna attività per questa persona." : "Nessuna attività. Creane una qui sopra."}</p>`; return; }
   $("elenco").innerHTML = lista.map(a => `<div class="attivita ${a.id === ultimaCreata ? "nuova" : ""}" data-attivita="${a.id}">
-    <div class="testa"><h3>${esc(a.titolo)}</h3>${a.cantiere ? `<span class="badge">${esc(a.cantiere.nome)}</span>` : ""}
+    <div class="testa"><h3>${esc(a.titolo)}</h3>${a.cantiere ? `<a class="badge" href="/cantieri/${a.cantiere.id}" style="text-decoration:none">${esc(a.cantiere.nome)}${a.appartamento ? " · " + esc(a.appartamento.nome) : ""}</a>` : ""}
       <span class="data">creata il ${new Date(a.creata).toLocaleDateString("it-IT")}</span>
       <span class="azioni"><button class="secondario" data-aggiungi>+ Allegati</button><button class="secondario" data-modifica>Modifica</button>
         <button class="leggero" data-elimina>Elimina</button></span></div>

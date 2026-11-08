@@ -11,7 +11,7 @@ from typing import Optional
 
 from fastapi import Header, HTTPException, Request
 
-from . import config, db
+from . import appartamenti, config, db
 
 COOKIE = "arws_sessione"
 
@@ -27,6 +27,7 @@ def archivio_pronto() -> None:
     with _lock:
         if chiave not in _inizializzati:
             db.inizializza()
+            appartamenti.inizializza()
             _inizializzati.add(chiave)
 
 
@@ -55,14 +56,17 @@ def solo_admin(request: Request, x_api_key: Optional[str] = Header(default=None)
 
 
 def admin_o_app(request: Request, authorization: Optional[str] = Header(default=None),
-                x_api_key: Optional[str] = Header(default=None)) -> None:
-    """Lettura delle piante: il superuser dalle pagine web oppure l'app con il token della persona."""
+                x_api_key: Optional[str] = Header(default=None)) -> dict | None:
+    """Lettura delle piante: il superuser dalle pagine web (→ None, vede tutto) oppure l'app con il
+    token della persona (→ la persona: vede solo le piante dei cantieri/appartamenti assegnati)."""
     archivio_pronto()
     if admin_corrente(request) or _chiave_giusta(x_api_key):
-        return
+        return None
     if config.API_KEY:
         raise HTTPException(status_code=401, detail="Chiave API mancante o errata")
-    if authorization and authorization.lower().startswith("bearer ") and db.persona_da_token(authorization[7:].strip()):
-        return
+    if authorization and authorization.lower().startswith("bearer "):
+        persona = db.persona_da_token(authorization[7:].strip())
+        if persona:
+            return persona
     raise HTTPException(status_code=401, detail="Accesso richiesto: login del superuser o token dell'app",
                         headers={"WWW-Authenticate": "Bearer"})

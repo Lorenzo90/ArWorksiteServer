@@ -52,13 +52,55 @@ CREATE TABLE IF NOT EXISTS sessioni (
     creata TEXT NOT NULL,
     scadenza TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS appartamenti (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    cantiere_id INTEGER NOT NULL REFERENCES cantieri(id) ON DELETE CASCADE,
+    nome TEXT NOT NULL,
+    numero INTEGER,
+    etichetta TEXT,
+    pianta TEXT,
+    id_app TEXT,
+    origine TEXT NOT NULL DEFAULT 'manuale',
+    creato TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS appartamenti_unici
+    ON appartamenti (cantiere_id, COALESCE(pianta, ''), nome COLLATE NOCASE);
+CREATE TABLE IF NOT EXISTS appartamento_committenti (
+    appartamento_id INTEGER NOT NULL REFERENCES appartamenti(id) ON DELETE CASCADE,
+    persona_id INTEGER NOT NULL REFERENCES persone(id) ON DELETE CASCADE,
+    PRIMARY KEY (appartamento_id, persona_id)
+);
+CREATE TABLE IF NOT EXISTS impostazioni (
+    chiave TEXT PRIMARY KEY,
+    valore TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS attivita (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     titolo TEXT NOT NULL,
     descrizione TEXT NOT NULL DEFAULT '',
     cantiere_id INTEGER REFERENCES cantieri(id) ON DELETE SET NULL,
+    appartamento_id INTEGER REFERENCES appartamenti(id) ON DELETE SET NULL,
     creata TEXT NOT NULL,
-    modificata TEXT NOT NULL
+    modificata TEXT NOT NULL,
+    stato TEXT NOT NULL DEFAULT 'aperta',
+    stato_modificato TEXT
+);
+CREATE TABLE IF NOT EXISTS attivita_note (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attivita_id INTEGER NOT NULL REFERENCES attivita(id) ON DELETE CASCADE,
+    quando TEXT NOT NULL,
+    persona_id INTEGER REFERENCES persone(id) ON DELETE SET NULL,
+    chi TEXT NOT NULL,
+    testo TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS attivita_stati (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    attivita_id INTEGER NOT NULL REFERENCES attivita(id) ON DELETE CASCADE,
+    stato TEXT NOT NULL,
+    quando TEXT NOT NULL,
+    persona_id INTEGER REFERENCES persone(id) ON DELETE SET NULL,
+    chi TEXT NOT NULL,
+    nota TEXT NOT NULL DEFAULT ''
 );
 CREATE TABLE IF NOT EXISTS attivita_assegnazioni (
     attivita_id INTEGER NOT NULL REFERENCES attivita(id) ON DELETE CASCADE,
@@ -73,8 +115,24 @@ CREATE TABLE IF NOT EXISTS attivita_allegati (
     file TEXT NOT NULL,
     dimensione INTEGER NOT NULL,
     sha256 TEXT NOT NULL,
-    caricato TEXT NOT NULL
+    caricato TEXT NOT NULL,
+    persona_id INTEGER REFERENCES persone(id) ON DELETE SET NULL,
+    chi TEXT NOT NULL DEFAULT 'Superuser',
+    riferimento TEXT
 );
+CREATE TABLE IF NOT EXISTS raccolta (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    appartamento_id INTEGER NOT NULL REFERENCES appartamenti(id) ON DELETE CASCADE,
+    percorso TEXT NOT NULL,
+    file TEXT NOT NULL,
+    dimensione INTEGER NOT NULL,
+    sha256 TEXT NOT NULL,
+    modificato_dispositivo TEXT,
+    caricato TEXT NOT NULL,
+    persona_id INTEGER REFERENCES persone(id) ON DELETE SET NULL,
+    chi TEXT NOT NULL
+);
+CREATE UNIQUE INDEX IF NOT EXISTS raccolta_percorsi ON raccolta (appartamento_id, percorso COLLATE NOCASE);
 """
 
 # Ruoli dal foglio "Ruoli" di documentazione/Attivita_e_ruoli_appartamento.xlsx (copiati in ruoli.json).
@@ -207,6 +265,29 @@ def _migra_versioni_precedenti(con: sqlite3.Connection) -> None:
                        SELECT id, capocantiere_id, creato FROM cantieri WHERE capocantiere_id IS NOT NULL""")
         con.execute("UPDATE cantieri SET capocantiere_id = NULL")
 
+    # Cartella delle piante del cantiere (data/piante/<cartella>): resta la stessa se il cantiere cambia nome.
+    if "cartella_piante" not in _colonne(con, "cantieri"):
+        con.execute("ALTER TABLE cantieri ADD COLUMN cartella_piante TEXT")
+    con.execute("UPDATE cantieri SET cartella_piante = nome WHERE cartella_piante IS NULL")
+    if "appartamento_id" not in _colonne(con, "attivita"):
+        con.execute("ALTER TABLE attivita ADD COLUMN appartamento_id INTEGER "
+                    "REFERENCES appartamenti(id) ON DELETE SET NULL")
+    # Stato dell'attività: quelle create prima che esistesse sono tutte aperte.
+    colonne = _colonne(con, "attivita")
+    if "stato" not in colonne:
+        con.execute("ALTER TABLE attivita ADD COLUMN stato TEXT NOT NULL DEFAULT 'aperta'")
+        con.execute("UPDATE attivita SET stato = 'aperta'")
+    if "stato_modificato" not in colonne:
+        con.execute("ALTER TABLE attivita ADD COLUMN stato_modificato TEXT")
+    # Allegati: chi li ha caricati (superuser o persona dall'app) e a quale parete/stanza si riferiscono.
+    colonne = _colonne(con, "attivita_allegati")
+    if "persona_id" not in colonne:
+        con.execute("ALTER TABLE attivita_allegati ADD COLUMN persona_id INTEGER REFERENCES persone(id) ON DELETE SET NULL")
+    if "chi" not in colonne:
+        con.execute("ALTER TABLE attivita_allegati ADD COLUMN chi TEXT NOT NULL DEFAULT 'Superuser'")
+    if "riferimento" not in colonne:
+        con.execute("ALTER TABLE attivita_allegati ADD COLUMN riferimento TEXT")
+
 
 def inizializza() -> None:
     """Crea/aggiorna le tabelle; al primo avvio inserisce persone e 4 cantieri di esempio.
@@ -221,8 +302,8 @@ def inizializza() -> None:
             con.executemany("INSERT INTO persone (nome, cognome, ruolo) VALUES (?, ?, ?)", PERSONE_ESEMPIO)
             dl = _id_persona(con, *DL_PREDEFINITO)
             for nome_cantiere, altri in CANTIERI_ESEMPIO.items():
-                cid = con.execute("INSERT INTO cantieri (nome, creato) VALUES (?, ?)",
-                                  (nome_cantiere, _iso(_ora()))).lastrowid
+                cid = con.execute("INSERT INTO cantieri (nome, creato, cartella_piante) VALUES (?, ?, ?)",
+                                  (nome_cantiere, _iso(_ora()), nome_cantiere)).lastrowid
                 for pid in [dl] + [_id_persona(con, *a) for a in altri]:
                     con.execute("INSERT INTO squadre (cantiere_id, persona_id, aggiunto) VALUES (?, ?, ?)",
                                 (cid, pid, _iso(_ora())))
@@ -410,8 +491,12 @@ def _con_squadra(con: sqlite3.Connection, righe: list[sqlite3.Row]) -> list[dict
     for r in righe:
         squadra = squadre[r["id"]]
         dl = next((m for m in squadra if m["ruolo"] == RUOLO_DL), None)
+        conta = con.execute("""SELECT (SELECT COUNT(*) FROM appartamenti WHERE cantiere_id = ?),
+                                      (SELECT COUNT(*) FROM attivita WHERE cantiere_id = ?)""",
+                            (r["id"], r["id"])).fetchone()
         risultati.append({"id": r["id"], "nome": r["nome"], "creato": r["creato"],
-                          "direttore_lavori": dl, "squadra": squadra})
+                          "direttore_lavori": dl, "squadra": squadra,
+                          "n_appartamenti": conta[0], "n_attivita": conta[1]})
     return risultati
 
 
@@ -440,7 +525,8 @@ def id_dl_predefinito() -> int | None:
 
 def crea_cantiere(nome: str, direttore_lavori_id: int | None) -> dict:
     with connessione() as con:
-        nuovo = con.execute("INSERT INTO cantieri (nome, creato) VALUES (?, ?)", (nome, _iso(_ora()))).lastrowid
+        nuovo = con.execute("INSERT INTO cantieri (nome, creato, cartella_piante) VALUES (?, ?, ?)",
+                            (nome, _iso(_ora()), nome)).lastrowid
         if direttore_lavori_id is not None:
             con.execute("INSERT INTO squadre (cantiere_id, persona_id, aggiunto) VALUES (?, ?, ?)",
                         (nuovo, direttore_lavori_id, _iso(_ora())))
@@ -462,8 +548,12 @@ def aggiungi_in_squadra(id_cantiere: int, id_persona: int) -> bool:
 
 def togli_da_squadra(id_cantiere: int, id_persona: int) -> bool:
     with connessione() as con:
-        return con.execute("DELETE FROM squadre WHERE cantiere_id = ? AND persona_id = ?",
-                           (id_cantiere, id_persona)).rowcount > 0
+        tolta = con.execute("DELETE FROM squadre WHERE cantiere_id = ? AND persona_id = ?",
+                            (id_cantiere, id_persona)).rowcount > 0
+        # chi esce dalla squadra non è più assegnato alle attività di quel cantiere
+        con.execute("DELETE FROM attivita_assegnazioni WHERE persona_id = ? AND attivita_id IN "
+                    "(SELECT id FROM attivita WHERE cantiere_id = ?)", (id_persona, id_cantiere))
+        return tolta
 
 
 def elimina_cantiere(id_cantiere: int) -> bool:

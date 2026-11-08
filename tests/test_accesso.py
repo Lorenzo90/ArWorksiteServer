@@ -30,7 +30,8 @@ def password_iniziali(tmp_path, client=None):
 def test_password_iniziali_per_ogni_persona(client, tmp_path):
     persone = client.get("/api/persone").json()
     pw = password_iniziali(tmp_path)
-    assert {p["username"] for p in persone} == set(pw) == {"mario.rossi", "luca.bianchi", "giulia.verdi", "paolo.neri"}
+    assert {p["username"] for p in persone} == set(pw) == {"mario.rossi", "luca.bianchi", "giulia.verdi", "paolo.neri",
+                                                                  "lorenzo.orlandi"}
     assert all(len(v) == 10 for v in pw.values())
     # nel database c'è solo l'impronta
     con = sqlite3.connect(tmp_path / "test.db")
