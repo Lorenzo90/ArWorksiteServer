@@ -77,9 +77,10 @@ def elenco(id_appartamento: int, request: Request, persona: Optional[dict] = Dep
            if_none_match: Optional[str] = Header(default=None)):
     """Tutti i file raccolti nell'appartamento (da tutti i telefoni), con impronta e autore. Il telefono
     confronta con i suoi: carica quelli nuovi o cambiati, scarica quelli degli altri.
+    Mancano i contenuti con un file di condivisione che non comprende la persona (vedi `raccolta.py`).
     Con `If-None-Match: "<versione>"` risponde 304 se non è cambiato niente."""
     a = _accesso(id_appartamento, persona, "leggere")
-    file = rc.elenco(id_appartamento)
+    file = rc.elenco_per(id_appartamento, persona)
     versione = rc.versione(file)
     etag = f'"{versione}"'
     if if_none_match and etag in [t.strip() for t in if_none_match.split(",")]:
@@ -100,9 +101,12 @@ async def carica(id_appartamento: int, percorso: str, request: Request,
     - stesso contenuto già presente → 200 `invariato` (si può ripetere senza problemi);
     - file nuovo → 201 `nuovo`; file già caricato dalla stessa persona → 200 `aggiornato`;
     - file caricato da un'altra persona → 409, a meno di `?sostituisci=true`;
-    - `X-Sha256` diverso dal contenuto ricevuto → 400 (trasferimento rovinato: riprovare)."""
-    _accesso(id_appartamento, persona, "caricare")
+    - `X-Sha256` diverso dal contenuto ricevuto → 400 (trasferimento rovinato: riprovare);
+    - contenuto non condiviso con la persona → 403 (il file di condivisione lo cambiano anche autore e DL)."""
+    a = _accesso(id_appartamento, persona, "caricare")
     percorso = _percorso(percorso)
+    if not rc.condivisioni(id_appartamento).puo_modificare(percorso, persona, a["dl"]):
+        raise HTTPException(status_code=403, detail="Questo contenuto non è condiviso con te: non puoi modificarlo")
     atteso = (x_sha256 or "").strip().lower()
     esistente = rc.leggi(id_appartamento, percorso)
     if esistente and esistente["sha256"] == atteso:
@@ -146,6 +150,8 @@ def scarica(id_appartamento: int, percorso: str, persona: Optional[dict] = Depen
     """Scarica un file raccolto. Con `If-None-Match: "<sha256>"` risponde 304 se è uguale."""
     _accesso(id_appartamento, persona, "leggere")
     r = rc.leggi(id_appartamento, _percorso(percorso))
+    if r and not rc.condivisioni(id_appartamento).vede(r["percorso"], persona):
+        r = None  # non condiviso con questa persona: come se non esistesse
     file = rc.cartella(id_appartamento) / r["file"] if r else None
     if not r or not file.is_file():
         raise HTTPException(status_code=404, detail="File non trovato")
@@ -161,12 +167,18 @@ def scarica(id_appartamento: int, percorso: str, persona: Optional[dict] = Depen
 
 @router.delete("/appartamenti/{id_appartamento}/raccolta/{percorso:path}", status_code=204)
 def elimina(id_appartamento: int, percorso: str, persona: Optional[dict] = Depends(admin_o_app)):
-    """Elimina un file raccolto: chi l'ha caricato, il Direttore dei lavori della squadra o il superuser."""
+    """Elimina un file raccolto: chi l'ha caricato, il Direttore dei lavori della squadra o il superuser.
+    Solo se il contenuto è condiviso con la persona (403). Un file di condivisione lo può eliminare chiunque
+    veda il contenuto, il suo autore o il DL: eliminarlo = condividere con tutti."""
     a = _accesso(id_appartamento, persona, "caricare")
-    r = rc.leggi(id_appartamento, _percorso(percorso))
+    percorso = _percorso(percorso)
+    r = rc.leggi(id_appartamento, percorso)
     if not r:
         raise HTTPException(status_code=404, detail="File non trovato")
-    if persona and r["persona_id"] != persona["id"] and not a["dl"]:
+    if not rc.condivisioni(id_appartamento).puo_modificare(r["percorso"], persona, a["dl"]):
+        raise HTTPException(status_code=403, detail="Questo contenuto non è condiviso con te: non puoi eliminarlo")
+    condivisione = rc.bersaglio_condivisione(r["percorso"]) is not None
+    if persona and r["persona_id"] != persona["id"] and not a["dl"] and not condivisione:
         raise HTTPException(status_code=403, detail=f"Lo può eliminare solo {r['chi']} o il Direttore dei lavori")
     rc.elimina(id_appartamento, r["percorso"])
     return Response(status_code=204)

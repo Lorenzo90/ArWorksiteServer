@@ -108,6 +108,20 @@ def _spazi_comuni(id_cantiere: int) -> int:
     return nuovi
 
 
+def assicura_appartamento(id_cantiere: int, nome_pianta: str) -> None:
+    """Pianta caricata dall'app iPad (RoomPlan): contiene un solo appartamento. Se la lettura del DXF non ne ha
+    trovato nessuno (manca il testo «App. N», oppure è un DWG) si crea APP 1, così l'app ha subito l'id
+    ("dwg:<nome pianta>/APP 1") per i dati raccolti."""
+    with db.connessione() as con:
+        if con.execute("""SELECT 1 FROM appartamenti WHERE cantiere_id = ? AND origine = 'pianta'
+                          AND pianta = ? COLLATE NOCASE""", (id_cantiere, nome_pianta)).fetchone():
+            return
+        con.execute("""INSERT OR IGNORE INTO appartamenti
+                       (cantiere_id, nome, numero, etichetta, pianta, id_app, origine, creato)
+                       VALUES (?, 'APP 1', 1, NULL, ?, ?, 'pianta', ?)""",
+                    (id_cantiere, nome_pianta, dxf.id_app(nome_pianta, "APP 1"), _ora()))
+
+
 def spazio_comune(id_cantiere: int) -> int | None:
     """Lo spazio comune della prima planimetria del cantiere (o quello generico)."""
     with db.connessione() as con:

@@ -5,12 +5,15 @@ import sqlite3
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from . import db
-from .sicurezza import archivio_pronto, solo_admin
+from .sicurezza import admin_o_app, archivio_pronto, solo_admin
 
 router = APIRouter(prefix="/api", dependencies=[Depends(archivio_pronto), Depends(solo_admin)])
+# API usate sia dalla pagina web (superuser) sia dall'app (token della persona): il controllo è nella funzione.
+router_app = APIRouter(prefix="/api", dependencies=[Depends(archivio_pronto)])
 
 
 def _testo(v: str) -> str:
@@ -68,8 +71,19 @@ class Membro(BaseModel):
 
 class CantiereIn(BaseModel):
     nome: str = Field(max_length=120)
-    direttore_lavori_id: Optional[int] = Field(default=None, description="Se assente: Mario Rossi")
+    indirizzo: Optional[str] = Field(default="", max_length=200, description="Facoltativo, es. «Trento»")
+    direttore_lavori_id: Optional[int] = Field(default=None,
+                                               description="Solo superuser. Se assente: Mario Rossi")
     _pulisci = field_validator("nome")(_testo)
+
+    @field_validator("indirizzo")
+    @classmethod
+    def _indirizzo(cls, v: Optional[str]) -> str:
+        return " ".join((v or "").split())
+
+
+class CantiereCreato(BaseModel):
+    id: int = Field(description="Id del cantiere, lo stesso di /api/miei-dati")
 
 
 class CantiereModifica(BaseModel):
@@ -84,6 +98,7 @@ class MembroIn(BaseModel):
 class Cantiere(BaseModel):
     id: int
     nome: str
+    indirizzo: str = ""
     creato: str
     direttore_lavori: Optional[Membro]
     squadra: list[Membro]
@@ -175,9 +190,22 @@ def leggi_cantiere(id_cantiere: int):
     return _cantiere(id_cantiere)
 
 
-@router.post("/cantieri", response_model=Cantiere, status_code=201, tags=["cantieri"])
-def crea_cantiere(dati: CantiereIn):
-    """Crea un cantiere con il suo Direttore dei lavori. Senza `direttore_lavori_id` è Mario Rossi."""
+@router_app.post("/cantieri", response_model=Cantiere, status_code=201, tags=["cantieri"],
+                 responses={201: {"description": "Superuser: il cantiere completo. App (token): {\"id\": 41}"}})
+def crea_cantiere(dati: CantiereIn, persona: Optional[dict] = Depends(admin_o_app)):
+    """Crea un cantiere.
+    - **Pagina web (superuser)**: con il suo Direttore dei lavori; senza `direttore_lavori_id` è Mario Rossi.
+    - **App (`Authorization: Bearer <token>`)**: qualunque persona collegata, qualunque ruolo. Chi lo crea entra
+      nella squadra del cantiere (accesso «squadra» in /api/miei-dati). Corpo `{"nome", "indirizzo"}`,
+      risposta 201 `{"id": 41}`. 401 senza token valido, 422 se manca il nome, 409 se il nome è già usato."""
+    if persona is not None:
+        try:
+            c = db.crea_cantiere(dati.nome, persona["id"], dati.indirizzo)
+        except sqlite3.IntegrityError:
+            raise HTTPException(status_code=409, detail=f"Esiste già un cantiere chiamato «{dati.nome}»")
+        from . import appartamenti
+        appartamenti.sincronizza(c["id"])
+        return JSONResponse(status_code=201, content=CantiereCreato(id=c["id"]).model_dump())
     dl_id = dati.direttore_lavori_id if dati.direttore_lavori_id is not None else db.id_dl_predefinito()
     if dl_id is not None:
         p = _persona(dl_id)
@@ -185,7 +213,7 @@ def crea_cantiere(dati: CantiereIn):
             raise HTTPException(status_code=400,
                                 detail=f"{p['nome']} {p['cognome']} non ha il ruolo Direttore dei lavori")
     try:
-        c = db.crea_cantiere(dati.nome, dl_id)
+        c = db.crea_cantiere(dati.nome, dl_id, dati.indirizzo)
     except sqlite3.IntegrityError:
         raise HTTPException(status_code=409, detail=f"Esiste già un cantiere chiamato «{dati.nome}»")
     from . import appartamenti  # spazio comune (e appartamenti, se ci sono già piante nella cartella)

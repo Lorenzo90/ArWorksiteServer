@@ -37,6 +37,8 @@ def _avvio() -> None:
 
 app.add_middleware(GZipMiddleware, minimum_size=2000)
 app.include_router(cantieri_api.router)
+app.include_router(cantieri_api.router_app)  # POST /api/cantieri: superuser o app (token)
+app.include_router(appartamenti_api.router_app)  # POST /api/cantieri/{id}/piante: superuser o app (token)
 app.include_router(accesso_api.router)
 app.include_router(attivita_api.router)
 app.include_router(attivita_api.router_file)

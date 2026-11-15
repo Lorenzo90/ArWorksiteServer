@@ -15,5 +15,8 @@ ESTENSIONI_PIANTE = {".dxf", ".dwg"}
 # Dimensione massima di un file caricato (MB).
 MAX_UPLOAD_MB = int(os.environ.get("ARWS_MAX_UPLOAD_MB", "200"))
 
+# Pianta caricata dall'app (iPad, POST /api/cantieri/{id}/piante con il token): limite più basso (MB).
+MAX_UPLOAD_APP_MB = int(os.environ.get("ARWS_MAX_UPLOAD_APP_MB", "50"))
+
 # Archivio SQLite di persone e cantieri.
 DB_PATH = Path(os.environ.get("ARWS_DB", BASE_DIR / "data" / "arworksite.db")).resolve()

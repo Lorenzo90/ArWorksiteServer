@@ -269,6 +269,9 @@ def _migra_versioni_precedenti(con: sqlite3.Connection) -> None:
     if "cartella_piante" not in _colonne(con, "cantieri"):
         con.execute("ALTER TABLE cantieri ADD COLUMN cartella_piante TEXT")
     con.execute("UPDATE cantieri SET cartella_piante = nome WHERE cartella_piante IS NULL")
+    # Indirizzo del cantiere (facoltativo; lo manda l'app iPad quando crea un cantiere).
+    if "indirizzo" not in _colonne(con, "cantieri"):
+        con.execute("ALTER TABLE cantieri ADD COLUMN indirizzo TEXT NOT NULL DEFAULT ''")
     if "appartamento_id" not in _colonne(con, "attivita"):
         con.execute("ALTER TABLE attivita ADD COLUMN appartamento_id INTEGER "
                     "REFERENCES appartamenti(id) ON DELETE SET NULL")
@@ -494,7 +497,7 @@ def _con_squadra(con: sqlite3.Connection, righe: list[sqlite3.Row]) -> list[dict
         conta = con.execute("""SELECT (SELECT COUNT(*) FROM appartamenti WHERE cantiere_id = ?),
                                       (SELECT COUNT(*) FROM attivita WHERE cantiere_id = ?)""",
                             (r["id"], r["id"])).fetchone()
-        risultati.append({"id": r["id"], "nome": r["nome"], "creato": r["creato"],
+        risultati.append({"id": r["id"], "nome": r["nome"], "indirizzo": r["indirizzo"] or "", "creato": r["creato"],
                           "direttore_lavori": dl, "squadra": squadra,
                           "n_appartamenti": conta[0], "n_attivita": conta[1]})
     return risultati
@@ -504,9 +507,9 @@ def elenco_cantieri(persona_id: int | None = None) -> list[dict]:
     """Tutti i cantieri, oppure solo quelli in cui `persona_id` fa parte della squadra."""
     with connessione() as con:
         if persona_id is None:
-            righe = con.execute("SELECT id, nome, creato FROM cantieri ORDER BY nome COLLATE NOCASE").fetchall()
+            righe = con.execute("SELECT id, nome, indirizzo, creato FROM cantieri ORDER BY nome COLLATE NOCASE").fetchall()
         else:
-            righe = con.execute("""SELECT c.id, c.nome, c.creato FROM cantieri c
+            righe = con.execute("""SELECT c.id, c.nome, c.indirizzo, c.creato FROM cantieri c
                                    JOIN squadre s ON s.cantiere_id = c.id AND s.persona_id = ?
                                    ORDER BY c.nome COLLATE NOCASE""", (persona_id,)).fetchall()
         return _con_squadra(con, righe)
@@ -514,7 +517,7 @@ def elenco_cantieri(persona_id: int | None = None) -> list[dict]:
 
 def leggi_cantiere(id_cantiere: int) -> dict | None:
     with connessione() as con:
-        righe = con.execute("SELECT id, nome, creato FROM cantieri WHERE id = ?", (id_cantiere,)).fetchall()
+        righe = con.execute("SELECT id, nome, indirizzo, creato FROM cantieri WHERE id = ?", (id_cantiere,)).fetchall()
         return _con_squadra(con, righe)[0] if righe else None
 
 
@@ -523,14 +526,22 @@ def id_dl_predefinito() -> int | None:
         return _id_persona(con, *DL_PREDEFINITO)
 
 
-def crea_cantiere(nome: str, direttore_lavori_id: int | None) -> dict:
+def crea_cantiere(nome: str, direttore_lavori_id: int | None, indirizzo: str = "") -> dict:
+    """Crea il cantiere; `direttore_lavori_id` (se c'è) entra nella squadra. Dall'app si passa qui chi crea
+    il cantiere, qualunque ruolo abbia: entrare nella squadra gli dà l'accesso a tutto il cantiere."""
     with connessione() as con:
-        nuovo = con.execute("INSERT INTO cantieri (nome, creato, cartella_piante) VALUES (?, ?, ?)",
-                            (nome, _iso(_ora()), nome)).lastrowid
+        nuovo = con.execute("INSERT INTO cantieri (nome, creato, cartella_piante, indirizzo) VALUES (?, ?, ?, ?)",
+                            (nome, _iso(_ora()), nome, indirizzo or "")).lastrowid
         if direttore_lavori_id is not None:
             con.execute("INSERT INTO squadre (cantiere_id, persona_id, aggiunto) VALUES (?, ?, ?)",
                         (nuovo, direttore_lavori_id, _iso(_ora())))
     return leggi_cantiere(nuovo)
+
+
+def in_squadra(id_cantiere: int, id_persona: int) -> bool:
+    with connessione() as con:
+        return con.execute("SELECT 1 FROM squadre WHERE cantiere_id = ? AND persona_id = ?",
+                           (id_cantiere, id_persona)).fetchone() is not None
 
 
 def rinomina_cantiere(id_cantiere: int, nome: str) -> dict | None:

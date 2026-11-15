@@ -69,7 +69,7 @@ def esplora(id_appartamento: int, request: Request, persona: Optional[dict] = De
         if stato_modello == "pronto":
             trovato = next((x for x in m["appartamenti"] if x["nome"].lower() == ap["nome"].lower()), None)
             locali = trovato["locali"] if trovato else []
-    file = [_con_url(f, id_appartamento, request) for f in rc.elenco(id_appartamento)]
+    file = [_con_url(f, id_appartamento, request) for f in rc.elenco_per(id_appartamento, persona)]
     nodi = vista.albero(file, locali, lambda interno: rc.cartella(id_appartamento) / interno)
 
     # attività dell'appartamento + quelle dello spazio comune della stessa planimetria

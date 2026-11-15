@@ -7,16 +7,19 @@ from pathlib import Path
 from typing import Optional
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field, field_validator
 
 from . import appartamenti as app_db
 from . import attivita as att
-from . import config, db
+from . import config, db, piante
 from .attivita_api import Attivita, con_url
 from .cantieri_api import Cantiere, Membro
-from .sicurezza import archivio_pronto, solo_admin
+from .sicurezza import admin_o_app, archivio_pronto, solo_admin
 
 router = APIRouter(prefix="/api", tags=["appartamenti"], dependencies=[Depends(archivio_pronto), Depends(solo_admin)])
+# Caricamento piante: pagina web (superuser) e app (token); il controllo è nella funzione.
+router_app = APIRouter(prefix="/api", tags=["appartamenti"], dependencies=[Depends(archivio_pronto)])
 
 
 class Appartamento(BaseModel):
@@ -118,14 +121,48 @@ def scheda_cantiere(id_cantiere: int, request: Request):
     return _scheda(id_cantiere, request)
 
 
-@router.post("/cantieri/{id_cantiere}/piante", response_model=Scheda, status_code=201)
+async def _scrivi_pianta(f: UploadFile, dest: Path, limite_mb: int) -> None:
+    """Scrive in un file temporaneo e lo rinomina solo alla fine: una pianta a metà non resta mai sul disco."""
+    tmp = dest.parent / f".upload-{uuid.uuid4().hex}.tmp"
+    limite = limite_mb * 1024 * 1024
+    dimensione = 0
+    try:
+        with tmp.open("wb") as out:
+            while blocco := await f.read(1 << 20):
+                dimensione += len(blocco)
+                if dimensione > limite:
+                    raise HTTPException(status_code=413, detail=f"{dest.name}: supera {limite_mb} MB")
+                out.write(blocco)
+        if dimensione == 0:
+            raise HTTPException(status_code=400, detail=f"{dest.name}: file vuoto")
+        os.replace(tmp, dest)
+    finally:
+        if tmp.exists():
+            tmp.unlink()
+
+
+class PiantaCaricata(BaseModel):
+    id: str = Field(description="Id della pianta, come in /api/piante")
+
+
+@router_app.post("/cantieri/{id_cantiere}/piante", response_model=Scheda, status_code=201,
+                 responses={201: {"description": "Superuser: la scheda del cantiere. App (token): {\"id\": \"<id pianta>\"}"}})
 async def carica_pianta_cantiere(id_cantiere: int, request: Request,
                                  file: list[UploadFile] = File(..., description="Piante .dxf o .dwg"),
-                                 sostituisci: bool = Form(default=False)):
-    """Carica piante nella cartella del cantiere e ne legge gli appartamenti (solo DXF)."""
+                                 sostituisci: bool = Form(default=False),
+                                 persona: Optional[dict] = Depends(admin_o_app)):
+    """Carica piante nella cartella del cantiere e ne legge gli appartamenti (solo DXF).
+    - **Pagina web (superuser)**: uno o più file; un file con lo stesso nome solo con `sostituisci=true` (409).
+    - **App (`Authorization: Bearer <token>`)**: un solo file nel campo `file`, chi è nella squadra del cantiere.
+      Il nome del file resta quello mandato (l'app ritrova così i suoi dati in `pareti/<nome>/`); se esiste già
+      viene sostituito, così un nuovo tentativo dopo un errore basta da solo. Crea l'appartamento della pianta
+      («App. N» nel DXF, APP 1 se non c'è). Risposta 201 `{"id": "<id pianta>"}`.
+      401 senza token, 404 cantiere inesistente, 403 senza accesso, 422 non DXF/DWG, 413 oltre
+      ARWS_MAX_UPLOAD_APP_MB (50 MB)."""
+    if persona is not None:
+        return await _carica_dall_app(id_cantiere, file, persona)
     _cantiere(id_cantiere)
     cartella = config.PIANTE_DIR / app_db.cartella_di(id_cantiere)
-    limite = config.MAX_UPLOAD_MB * 1024 * 1024
     destinazioni = []
     for f in file:
         nome = app_db.nome_cartella(Path(f.filename or "").name)
@@ -136,22 +173,31 @@ async def carica_pianta_cantiere(id_cantiere: int, request: Request,
         destinazioni.append((f, cartella / nome))
     cartella.mkdir(parents=True, exist_ok=True)
     for f, dest in destinazioni:
-        tmp = cartella / f".upload-{uuid.uuid4().hex}.tmp"
-        dimensione = 0
-        try:
-            with tmp.open("wb") as out:
-                while blocco := await f.read(1 << 20):
-                    dimensione += len(blocco)
-                    if dimensione > limite:
-                        raise HTTPException(status_code=413, detail=f"{dest.name}: supera {config.MAX_UPLOAD_MB} MB")
-                    out.write(blocco)
-            if dimensione == 0:
-                raise HTTPException(status_code=400, detail=f"{dest.name}: file vuoto")
-            os.replace(tmp, dest)
-        finally:
-            if tmp.exists():
-                tmp.unlink()
+        await _scrivi_pianta(f, dest, config.MAX_UPLOAD_MB)
     return _scheda(id_cantiere, request)
+
+
+async def _carica_dall_app(id_cantiere: int, file: list[UploadFile], persona: dict) -> JSONResponse:
+    _cantiere(id_cantiere)
+    if not db.in_squadra(id_cantiere, persona["id"]):
+        raise HTTPException(status_code=403, detail="Non fai parte della squadra di questo cantiere")
+    file = [f for f in file if f.filename]
+    if len(file) != 1:
+        raise HTTPException(status_code=422, detail="Manda un solo file nel campo «file», con il suo nome")
+    f = file[0]
+    nome = app_db.nome_cartella(Path(f.filename.replace("\\", "/")).name)
+    if Path(nome).suffix.lower() not in config.ESTENSIONI_PIANTE:
+        raise HTTPException(status_code=422, detail=f"{nome}: sono ammessi solo file .dxf e .dwg")
+    cartella = config.PIANTE_DIR / app_db.cartella_di(id_cantiere)
+    cartella.mkdir(parents=True, exist_ok=True)
+    dest = cartella / nome
+    await _scrivi_pianta(f, dest, config.MAX_UPLOAD_APP_MB)
+    app_db.sincronizza(id_cantiere)  # appartamenti dal testo «App. N», spazio comune della planimetria
+    app_db.assicura_appartamento(id_cantiere, nome)
+    p = next((p for p in piante.elenco() if p.percorso.resolve() == dest.resolve()), None)
+    if p is None:  # non dovrebbe succedere: il file è appena stato scritto
+        raise HTTPException(status_code=500, detail="Pianta salvata ma non trovata nell'elenco")
+    return JSONResponse(status_code=201, content=PiantaCaricata(id=p.id).model_dump())
 
 
 @router.post("/cantieri/{id_cantiere}/appartamenti", response_model=Appartamento, status_code=201)

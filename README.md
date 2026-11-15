@@ -20,7 +20,7 @@ Le pagine `/` (= `/cantieri`), le schede dei cantieri e `/docs` richiedono il lo
 - La password iniziale è in `data/credenziali_iniziali.txt` (creata al primo avvio).
 - Per cambiarla: doppio clic su `imposta_password_superuser.bat` (chiede la nuova password; le sessioni aperte vengono chiuse, non serve riavviare).
 - La sessione dura 12 ore (cookie `HttpOnly`); il pulsante *Esci* in alto la chiude.
-- Le API di gestione (persone, cantieri, squadre, caricamento piante) rispondono solo al superuser collegato. L'app usa invece il proprio token: con quello può leggere e scaricare le piante (`GET /api/piante...`) e i propri cantieri, ma non modificare nulla.
+- Le API di gestione (persone, cantieri, squadre, caricamento piante) rispondono solo al superuser collegato. L'app usa invece il proprio token: con quello può leggere e scaricare le piante (`GET /api/piante...`) e i propri cantieri, **creare un cantiere e caricarne la pianta** (app iPad, vedi *Cantieri creati dall'app*), ma non modificare il resto.
 
 ## Cantieri, persone e ruoli
 I **ruoli** sono i 16 del file `ARworksite/documentazione/Attivita_e_ruoli_appartamento.xlsx` (foglio *Ruoli*), copiati in `app/ruoli.json`: CL, GL, PR, **DL** (Direttore dei lavori), CSE, **CC** (Capocantiere), MU, EL, ID, TT, CG, MS, PO, SE, PI, FO. Se il file Excel cambia, aggiorna `app/ruoli.json` e riavvia: i nomi si aggiornano da soli.
@@ -61,6 +61,7 @@ Dalla scheda del cantiere *Vista del cantiere →* (o dall'elenco dei cantieri *
 ## Dal telefono al server
 - **Aggiornamento di un'attività**: `POST /api/mie-attivita/{id}/aggiornamento` (multipart) con foto/file/GLB, `stato`, `nota` e `riferimento` (id app della parete o stanza) in una sola chiamata. Gli allegati portano il nome di chi li ha caricati; nella scheda del cantiere si vedono sotto l'attività.
 - **Dati raccolti** (cartella dell'app `pareti/<DWG>/<APP n>/`: scansioni, foto, file, report): il telefono confronta i file con `GET /api/appartamenti/{id}/raccolta` e carica solo quelli nuovi o cambiati con `PUT /api/appartamenti/{id}/raccolta/<percorso>` (`X-Sha256`). Carica chi è nella squadra; i committenti leggono. Un file caricato da un'altra persona non si sovrascrive (409) senza `sostituisci=true`. Sul server: `data/raccolta/<id appartamento>/`. Nella scheda del cantiere ogni appartamento mostra *Dati raccolti: n file* e *Vedi* per l'elenco.
+- **Con chi è condiviso ogni contenuto** (scelto nell'app): accanto a una foto o un file `X` c'è `X.condivisione.json`, in una scansione `<cartella>/condivisione.json`, con `{"persone": [3, 5, 9], "autore": 9, "modificato": <ms>}` (id delle persone del server). Chi non è tra le `persone` non riceve il contenuto né i suoi file (`X`, `X.condivisione.json`, `X.annotazioni.json`, o tutta la cartella della scansione) nell'elenco della raccolta e in *esplora*; scaricarlo dà 404, caricarlo o eliminarlo 403. Il file di condivisione lo cambiano chi vede il contenuto, il suo autore e il DL della squadra; eliminarlo = condiviso con tutti. Nessun file, o file illeggibile (scritto nel log), = tutti come prima. Il superuser vede tutto. Gli allegati delle attività restano visibili a chi vede l'attività.
 
 ## Accesso dall'app (utente e password)
 Ogni persona ha un **utente** (`nome.cognome`, es. `mario.rossi`) e una **password** (per la demo `1234` per tutti; le persone nuove ne ricevono una casuale). Nel database c'è solo l'impronta della password (PBKDF2), mai il testo.
@@ -73,6 +74,14 @@ Ogni persona ha un **utente** (`nome.cognome`, es. `mario.rossi`) e una **passwo
 Ogni pianta ha `sha256` e `url_download`; ogni appartamento ha `id_app` (= id dell'appartamento nell'app) e `pianta_id`. `versione` cambia solo quando cambia qualcosa: con `If-None-Match: "<versione>"` `/api/miei-dati` risponde **304**. Con il token dell'app `/api/piante` e i download mostrano **solo le piante assegnate** (le altre: 404). Dettagli per lo sviluppo dell'app: `C:\c\ARworksite\ARworksite\documentazione\Server_login_e_dati_app.md`.
 
 - **Login dall'app**: `POST /api/login` con `{"username": "mario.rossi", "password": "1234"}` → `token` (30 giorni) + i dati qui sopra. `POST /api/logout` chiude la sessione. Con token scaduto o password cambiata la risposta è 401.
+
+## Cantieri creati dall'app (iPad, RoomPlan)
+L'app crea il cantiere e poi carica la pianta, con il token della persona (`Authorization: Bearer`):
+1. `POST /api/cantieri` con `{"nome": "Via Roma 3", "indirizzo": "Trento"}` (indirizzo facoltativo) → **201** `{"id": 41}`. Lo può fare **chiunque** sia collegato, qualunque ruolo abbia. Chi lo crea **entra nella squadra** del cantiere: in `/api/miei-dati` lo vede subito con `accesso: "squadra"`. Il Direttore dei lavori non viene aggiunto: lo si mette dalla pagina *Cantieri* (squadra). Errori: 401 senza token, 422 nome vuoto, 409 nome già usato.
+2. `POST /api/cantieri/{id}/piante` (multipart, **un** file nel campo `file`, es. `Via Roma 3.dxf`) → **201** `{"id": "<id pianta>"}`. Solo chi è nella squadra (403 altrimenti, 404 cantiere inesistente, 422 se non è .dxf/.dwg, 413 oltre `ARWS_MAX_UPLOAD_APP_MB`, 50 MB). Il **nome del file resta quello mandato** (l'app ritrova i suoi dati in `pareti/<nome>/`); se esiste già viene **sostituito**, così dopo un errore basta richiamare questa API. La pianta finisce in `data/piante/<nome cantiere>/`, compare in `/api/piante` e in `/api/miei-dati` con `sha256` e si scarica da `/api/piante/{id}/file`.
+3. L'appartamento nasce dal testo `App. N` del DXF (stessa lettura delle altre piante) con `id_app` = `dwg:<nome pianta>/APP N`; se il testo non c'è (o è un DWG) viene creato **APP 1**. Funziona quindi anche *Aggiorna dati* (`/api/appartamenti/{id}/raccolta`).
+
+Dalla pagina web le stesse API funzionano come prima (superuser): cantiere con DL, caricamento di più piante con `sostituisci`.
 
 ## API
 | Metodo | Percorso | Descrizione |
@@ -98,12 +107,12 @@ Ogni pianta ha `sha256` e `url_download`; ogni appartamento ha `id_app` (= id de
 | DELETE | `/api/attivita/{id}/allegati/{id_allegato}` | Elimina un allegato — superuser |
 | GET | `/api/attivita/{id}/allegati/{id_allegato}/file` | Scarica un allegato (superuser o persona assegnata; `inline=true` per mostrarlo) |
 | POST | `/api/logout` | Chiude la sessione del token |
-| GET / POST | `/api/cantieri` | Elenco / nuovo cantiere (`nome`, `direttore_lavori_id` facoltativo → Mario Rossi) |
+| GET / POST | `/api/cantieri` | Elenco / nuovo cantiere (`nome`, `indirizzo`, `direttore_lavori_id` facoltativo → Mario Rossi). Anche dall'app col token: → `{"id"}`, chi lo crea entra nella squadra |
 | GET / PATCH / DELETE | `/api/cantieri/{id}` | Dettaglio con squadra / rinomina / eliminazione |
 | POST | `/api/cantieri/{id}/squadra` | Aggiunge una persona alla squadra (`persona_id`) |
 | DELETE | `/api/cantieri/{id}/squadra/{persona_id}` | Toglie una persona dalla squadra |
 | GET | `/api/cantieri/{id}/scheda` | Scheda: cantiere, piante, appartamenti con committenti, attività — superuser |
-| POST | `/api/cantieri/{id}/piante` | Carica DXF/DWG nel cantiere e aggiorna gli appartamenti (`sostituisci=true` per sovrascrivere) |
+| POST | `/api/cantieri/{id}/piante` | Carica DXF/DWG nel cantiere e aggiorna gli appartamenti (`sostituisci=true` per sovrascrivere). Anche dall'app col token (squadra): un file, sostituito se c'è già → `{"id"}` |
 | POST | `/api/cantieri/{id}/appartamenti` | Appartamento a mano (`nome`) |
 | DELETE | `/api/appartamenti/{id}` | Elimina un appartamento aggiunto a mano |
 | POST / DELETE | `/api/appartamenti/{id}/committenti[/{persona_id}]` | Aggiunge (`persona_id`) / toglie un committente |
@@ -120,6 +129,7 @@ L'`id` è stabile finché il file non cambia nome/cartella; `sha256` cambia quan
 - `ARWS_PIANTE_DIR`: cartella delle piante (predefinita `data/piante`).
 - `ARWS_DB`: file SQLite di persone e cantieri (predefinito `data/arworksite.db`).
 - `ARWS_MAX_UPLOAD_MB`: dimensione massima di un file caricato (predefinita 200).
+- `ARWS_MAX_UPLOAD_APP_MB`: dimensione massima di una pianta caricata dall'app (predefinita 50).
 - `ARWS_API_KEY`: se impostata, le API `/api/*` (tranne health) richiedono l'intestazione `X-Api-Key`; la pagina web chiede la chiave e la ricorda nel browser.
 
 ## Test

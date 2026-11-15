@@ -11,7 +11,8 @@ from conftest import client_superuser
 @pytest.fixture()
 def client(tmp_path, monkeypatch):
     (tmp_path / "Cantiere A").mkdir()
-    (tmp_path / "Cantiere A" / "APP 3 (1).dxf").write_text("0\nSECTION\n0\nEOF\n")
+    # In byte: write_text su Windows scriverebbe \r\n.
+    (tmp_path / "Cantiere A" / "APP 3 (1).dxf").write_bytes(b"0\nSECTION\n0\nEOF\n")
     (tmp_path / "pianta.dwg").write_bytes(b"AC1032")
     (tmp_path / "note.txt").write_text("ignorato")
     monkeypatch.setattr(config, "PIANTE_DIR", tmp_path)
