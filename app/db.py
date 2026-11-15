@@ -83,7 +83,8 @@ CREATE TABLE IF NOT EXISTS attivita (
     creata TEXT NOT NULL,
     modificata TEXT NOT NULL,
     stato TEXT NOT NULL DEFAULT 'aperta',
-    stato_modificato TEXT
+    stato_modificato TEXT,
+    autore_id INTEGER REFERENCES persone(id) ON DELETE SET NULL
 );
 CREATE TABLE IF NOT EXISTS attivita_note (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -282,6 +283,9 @@ def _migra_versioni_precedenti(con: sqlite3.Connection) -> None:
         con.execute("UPDATE attivita SET stato = 'aperta'")
     if "stato_modificato" not in colonne:
         con.execute("ALTER TABLE attivita ADD COLUMN stato_modificato TEXT")
+    # Chi ha fatto la segnalazione dall'app (null = creata dal superuser dalla pagina web).
+    if "autore_id" not in colonne:
+        con.execute("ALTER TABLE attivita ADD COLUMN autore_id INTEGER REFERENCES persone(id) ON DELETE SET NULL")
     # Allegati: chi li ha caricati (superuser o persona dall'app) e a quale parete/stanza si riferiscono.
     colonne = _colonne(con, "attivita_allegati")
     if "persona_id" not in colonne:

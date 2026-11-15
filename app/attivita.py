@@ -33,6 +33,8 @@ PASSAGGI_ASSEGNATARIO = {
     ("presa_in_carico", "chiusa"),                                  # fatto
     ("da_verificare", "chiusa"),                                    # ricontrollata e richiusa
 }
+# Chi ha fatto la segnalazione dall'app: come chi è assegnato, e in più la riapre quando è chiusa.
+PASSAGGI_AUTORE = PASSAGGI_ASSEGNATARIO | {("chiusa", "aperta")}
 # Stati in cui conta chi ha preso in carico l'attività.
 _CON_INCARICATO = {"presa_in_carico", "da_verificare"}
 
@@ -93,6 +95,9 @@ def _componi(con: sqlite3.Connection, righe: list[sqlite3.Row]) -> list[dict]:
              "stato_modificato": r["stato_modificato"], "storico_stati": storico[r["id"]],
              "in_carico": _incaricato(r["stato"], storico[r["id"]]),
              "note": note[r["id"]],
+             "autore": ({"id": r["autore_id"], "nome": r["autore_nome"], "cognome": r["autore_cognome"],
+                         "ruolo": r["autore_ruolo"], "ruolo_nome": r["autore_ruolo_nome"]}
+                        if r["autore_id"] and r["autore_nome"] is not None else None),
              "assegnatari": persone[r["id"]], "allegati": allegati[r["id"]]} for r in righe]
 
 
@@ -104,9 +109,12 @@ def _incaricato(stato: str, storico: list[dict]) -> dict | None:
     return {k: presa[k] for k in ("persona_id", "chi", "quando")} if presa else None
 
 
-_SELECT = """SELECT t.*, c.nome AS cantiere_nome, ap.nome AS appartamento_nome, ap.id_app AS appartamento_id_app
+_SELECT = """SELECT t.*, c.nome AS cantiere_nome, ap.nome AS appartamento_nome, ap.id_app AS appartamento_id_app,
+                    au.nome AS autore_nome, au.cognome AS autore_cognome, au.ruolo AS autore_ruolo,
+                    aur.nome AS autore_ruolo_nome
              FROM attivita t LEFT JOIN cantieri c ON c.id = t.cantiere_id
-             LEFT JOIN appartamenti ap ON ap.id = t.appartamento_id"""
+             LEFT JOIN appartamenti ap ON ap.id = t.appartamento_id
+             LEFT JOIN persone au ON au.id = t.autore_id LEFT JOIN ruoli aur ON aur.sigla = au.ruolo"""
 
 
 def elenco(persona_id: int | None = None) -> list[dict]:
@@ -121,11 +129,12 @@ def elenco(persona_id: int | None = None) -> list[dict]:
 
 
 def elenco_per_app(persona: dict) -> list[dict]:
-    """Le attività che l'app di una persona riceve: quelle assegnate a lei e, se è Direttore dei lavori,
-    tutte quelle dei cantieri della sua squadra (deve poterle verificare e chiudere)."""
+    """Le attività che l'app di una persona riceve: quelle assegnate a lei, le segnalazioni che ha fatto
+    e, se è Direttore dei lavori, tutte quelle dei cantieri della sua squadra (deve poterle verificare e chiudere)."""
     with db.connessione() as con:
         righe = con.execute(_SELECT + """
             WHERE t.id IN (SELECT attivita_id FROM attivita_assegnazioni WHERE persona_id = :p)
+               OR t.autore_id = :p
                OR (:dl AND t.cantiere_id IN (SELECT cantiere_id FROM squadre WHERE persona_id = :p))
             ORDER BY t.id DESC""", {"p": persona["id"], "dl": persona["ruolo"] == db.RUOLO_DL}).fetchall()
         return _componi(con, righe)
@@ -139,8 +148,13 @@ def e_dl_del_cantiere(attivita: dict, persona: dict) -> bool:
                            (attivita["cantiere"]["id"], persona["id"])).fetchone() is not None
 
 
+def e_autore(attivita: dict, persona: dict) -> bool:
+    return bool(attivita.get("autore")) and attivita["autore"]["id"] == persona["id"]
+
+
 def visibile_a(attivita: dict, persona: dict) -> bool:
-    return any(p["id"] == persona["id"] for p in attivita["assegnatari"]) or e_dl_del_cantiere(attivita, persona)
+    return (any(p["id"] == persona["id"] for p in attivita["assegnatari"]) or e_autore(attivita, persona)
+            or e_dl_del_cantiere(attivita, persona))
 
 
 def aggiungi_nota(id_attivita: int, testo: str, chi: str, persona_id: int | None = None) -> dict | None:
@@ -197,12 +211,12 @@ def persone_esistenti(ids: list[int]) -> set[int]:
 
 
 def crea(titolo: str, descrizione: str, cantiere_id: int | None, persone_ids: list[int],
-         appartamento_id: int | None = None) -> dict:
+         appartamento_id: int | None = None, autore_id: int | None = None) -> dict:
     ora = _ora()
     with db.connessione() as con:
-        nuovo = con.execute("INSERT INTO attivita (titolo, descrizione, cantiere_id, appartamento_id, creata, modificata) "
-                            "VALUES (?, ?, ?, ?, ?, ?)",
-                            (titolo, descrizione, cantiere_id, appartamento_id, ora, ora)).lastrowid
+        nuovo = con.execute("INSERT INTO attivita (titolo, descrizione, cantiere_id, appartamento_id, creata, modificata, "
+                            "autore_id) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                            (titolo, descrizione, cantiere_id, appartamento_id, ora, ora, autore_id)).lastrowid
         con.executemany("INSERT OR IGNORE INTO attivita_assegnazioni (attivita_id, persona_id) VALUES (?, ?)",
                         [(nuovo, p) for p in persone_ids])
     return leggi(nuovo)

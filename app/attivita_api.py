@@ -151,6 +151,8 @@ class Attivita(BaseModel):
     in_carico: Optional[Incaricato] = Field(default=None, description="Chi l'ha presa in carico (presa in carico / da verificare)")
     note: list[Nota] = Field(default=[], description="Note libere, dalla più vecchia. Le note dei cambi di stato "
                                                     "sono in storico_stati[].nota")
+    autore: Optional[Membro] = Field(default=None, description="Chi ha fatto la segnalazione dall'app "
+                                                               "(null = creata dalla pagina web)")
     assegnatari: list[Membro]
     allegati: list[Allegato]
 

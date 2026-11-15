@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field
 
 from . import attivita as att
 from . import db, pacchetto
+from . import raccolta as rc
 from .attivita_api import Attivita, NotaIn, StatoIn, con_url, controlla_nomi, salva_allegati
 from .appartamenti_api import RiepilogoRaccolta
 from .cantieri_api import Membro
@@ -197,7 +198,8 @@ def _controlla_passaggio(a: dict, persona: dict, stato: str) -> None:
     incaricato = a.get("in_carico")
     if incaricato and incaricato.get("persona_id") not in (None, persona["id"]):
         raise HTTPException(status_code=403, detail=f"L'attività è in carico a {incaricato['chi']}")
-    if (a["stato"], stato) not in att.PASSAGGI_ASSEGNATARIO:
+    permessi = att.PASSAGGI_AUTORE if att.e_autore(a, persona) else att.PASSAGGI_ASSEGNATARIO
+    if (a["stato"], stato) not in permessi:
         raise HTTPException(status_code=403,
                             detail="Passaggio non permesso: chi è assegnato prende in carico e chiude; "
                                    "riaprire o mettere «Da verificare» spetta al Direttore dei lavori")
@@ -243,6 +245,66 @@ def aggiungi_nota(id_attivita: int, dati: NotaIn, request: Request, persona: dic
     """Nota libera dal telefono (chi è assegnato o il DL del cantiere), senza cambiare lo stato."""
     _attivita_visibile(id_attivita, persona)
     return con_url(att.aggiungi_nota(id_attivita, dati.testo, _nome(persona), persona["id"]), request)
+
+
+@router.post("/mie-segnalazioni", response_model=Attivita, status_code=201)
+async def nuova_segnalazione(request: Request,
+                             persona: dict = Depends(persona_autenticata),
+                             appartamento_id: int = Form(description="Id dell'appartamento sul server"),
+                             descrizione: str = Form(max_length=5000),
+                             titolo: str = Form(default="", max_length=200,
+                                                description="Facoltativo: se vuoto, l'inizio della descrizione"),
+                             persone_ids: str = Form(default="",
+                                                     description="Id separati da virgola; vuoto = tutto il cantiere"),
+                             riferimento: Optional[str] = Form(default=None, max_length=400,
+                                                               description="Id app della parete/stanza + percorso"),
+                             file: Optional[list[UploadFile]] = File(default=None,
+                                                                     description="Foto con le note, file... (ripetibile)")):
+    """Segnalazione dal telefono: un contenuto (foto, scansione, file) con una descrizione, mandato ad alcune
+    persone del cantiere. Diventa un'attività con autore = chi la manda e assegnatari = le persone scelte
+    (vuoto = la squadra del cantiere e i committenti dell'appartamento). Stati come le attività; l'autore
+    la vede sempre e può anche riaprirla.
+    404 se la persona non vede l'appartamento, 422 descrizione vuota o persone fuori dal cantiere."""
+    descrizione = descrizione.strip()
+    if not descrizione:
+        raise HTTPException(status_code=422, detail="La descrizione non può essere vuota")
+    acc = rc.accesso(appartamento_id, persona)
+    if not acc or not acc["leggere"]:
+        raise HTTPException(status_code=404, detail="Appartamento non trovato")
+    ap = acc["appartamento"]
+    possibili = _persone_dell_appartamento(appartamento_id, ap["cantiere_id"])
+    try:
+        scelti = {int(x) for x in persone_ids.replace(";", ",").split(",") if x.strip()}
+    except ValueError:
+        raise HTTPException(status_code=422, detail="persone_ids: id non validi")
+    fuori = scelti - possibili - {persona["id"]}
+    if fuori:
+        raise HTTPException(status_code=422, detail=f"Persone non del cantiere: {sorted(fuori)}")
+    assegnati = (scelti or possibili) - {persona["id"]}
+    file = [f for f in (file or []) if f.filename]
+    controlla_nomi(file)
+    if not titolo.strip():
+        prima = descrizione.splitlines()[0]
+        titolo = prima if len(prima) <= 80 else prima[:79] + "…"
+    nuova = att.crea(titolo.strip(), descrizione, ap["cantiere_id"], sorted(assegnati), appartamento_id,
+                     autore_id=persona["id"])
+    try:
+        if file:
+            await salva_allegati(nuova["id"], file, persona["id"], _nome(persona),
+                                 (riferimento or "").strip() or None)
+    except Exception:
+        att.elimina(nuova["id"])  # niente a metà: se un file non passa la segnalazione non resta
+        raise
+    return con_url(att.leggi(nuova["id"]), request)
+
+
+def _persone_dell_appartamento(id_appartamento: int, id_cantiere: int) -> set[int]:
+    """La squadra del cantiere e i committenti dell'appartamento."""
+    with db.connessione() as con:
+        squadra = {r[0] for r in con.execute("SELECT persona_id FROM squadre WHERE cantiere_id = ?", (id_cantiere,))}
+        committenti = {r[0] for r in con.execute(
+            "SELECT persona_id FROM appartamento_committenti WHERE appartamento_id = ?", (id_appartamento,))}
+    return squadra | committenti
 
 
 @router.post("/logout", status_code=204)

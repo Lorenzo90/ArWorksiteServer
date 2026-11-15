@@ -272,6 +272,30 @@ Percorsi accettati: fino a 10 livelli, senza `..`, `.`, cartelle o file nascosti
 
 Prima il `PUT` dei `metadata.json`/`wall.jpg` di una scansione, poi gli altri file; i file grandi (GLB) per ultimi. Senza rete non si perde niente: al giro successivo l'algoritmo ritrova le differenze da solo, non serve una coda per i dati raccolti.
 
+### 3.10 Segnalazioni dal telefono (15/11/2026)
+
+Nell'app la lista delle attività è diventata la lista delle **segnalazioni**: un contenuto (foto o scansione con le note e misure disegnate sopra, oppure un file) con una **descrizione**, mandato ad alcune persone del cantiere. Sul server una segnalazione **è un'attività** con `autore`: stati, note, storico e allegati sono quelli di 3.6–3.7.
+
+`POST /api/mie-segnalazioni`, **multipart/form-data**, token dell'app:
+
+| Campo | Obbligatorio | Note |
+|---|---|---|
+| `appartamento_id` | sì | Id dell'appartamento sul server (`cantieri[].appartamenti[].id`) |
+| `descrizione` | sì | Non vuota, max 5000 caratteri |
+| `titolo` | no | Se vuoto: la prima riga della descrizione (max 80 caratteri) |
+| `persone_ids` | no | Id separati da virgola (squadra del cantiere o committenti dell'appartamento); **vuoto = tutti** (squadra + committenti). L'autore può esserci: viene tolto dagli assegnatari |
+| `riferimento` | no | Id app di dove è stato fatto il contenuto (come in 3.7) |
+| `file` | no (ripetibile) | Stesse regole degli allegati |
+
+Risposte: **201** con l'attività (come `attivita[]`, con `autore`), **404** appartamento non visibile alla persona, **422** descrizione vuota o persone fuori dal cantiere, **400** file non ammesso (la segnalazione non resta).
+
+Regole:
+- l'attività ha `autore_id` (colonna nuova, `null` per quelle create dalla pagina web) e nel JSON `autore {id, nome, cognome, ruolo, ruolo_nome}`;
+- la ricevono gli assegnatari, **l'autore** e il DL della squadra (`/api/miei-dati`, `/api/mie-attivita`);
+- stati: gli assegnatari come in 3.6; l'autore come un assegnatario e in più **riapre** (`chiusa` → `aperta`); il DL tutto.
+
+Nell'app (`server/PendingReports.kt`): la segnalazione si salva subito sul telefono in `attivita/<utente>/da_inviare/segnalazioni/<ms>/` e parte con «Aggiorna stato online», prima degli allegati e degli stati. Le nuove degli altri arrivano con la sincronizzazione (anche in background ogni 15 minuti su Android) e danno una notifica (`ReportSeen`: `segnalazioni_viste.json`).
+
 ### 3.9 Errori
 
 | Risposta | Significato | Cosa fa l'app |
