@@ -1,6 +1,14 @@
 # Flusso ARworksite – server e app
 
-**Aggiornato l'8/11/2026 sera.** Novità rispetto alla versione del pomeriggio:
+**Aggiornato il 9/11/2026 sera.** Novità del 9/11:
+
+- **Stati come nell'app**: chi è assegnato prende in carico e **chiude** (con foto e file); «Da verificare» lo mette il DL per far ricontrollare e chi l'aveva richiude; nessuno cambia un'attività in carico a un altro (3.6). Server allineato a `ActivityStates.kt`.
+- **Scansioni uguali**: `ApartmentDataSync` riconosce la stessa scansione già sul server (stessa immagine nella stessa cartella) e non la duplica (3.8).
+
+- **Vista del cantiere sul server** (`/cantieri/{id}/vista`): planimetria, locali e pareti ricostruiti con lo stesso calcolo dell'app e pannello media Foto / Scansioni / File / Attività per appartamento, locale, parete, soffitto e pavimento; API `GET /api/piante/{id}/modello` e `GET /api/appartamenti/{id}/esplora` (3.9).
+- In APP 3 di Lungo Avisio i **dati di esempio dell'app** sono già sul server: l'app non deve ricaricare le scansioni di esempio (3.8).
+
+Novità dell'8/11 sera rispetto al pomeriggio:
 
 - **Stato "Presa in carico"** tra Aperta e Da verificare (4 stati), con `in_carico` = chi l'ha presa; chi è assegnato prende in carico, rilascia, segna come fatta e annulla; chiudere e riaprire resta al DL (3.6).
 - **Note e storico**: note libere sulle attività (`note[]`, `POST /api/mie-attivita/{id}/note`) oltre alle note dei cambi di stato; nell'app e nella pagina web "Note e storico (n)" con la cronologia completa (3.6).
@@ -13,7 +21,7 @@ La stessa specifica, sempre aggiornata, è in `C:\c\ARworksite\ARworksite\docume
 
 ---
 
-Questo documento descrive cosa deve fare l'app (modulo `shared`, Android e iOS) quando l'operatore fa il login: quali dati riceve dal server, cosa scaricare sul telefono e come mostrarlo; poi cosa **manda** al server: cambi di stato, note e allegati delle attività (3.6, 3.7) e i dati raccolti negli appartamenti (3.8). Server: `C:\c\ARworksiteServer` (FastAPI), versione dell'8/11/2026 sera (4 stati con presa in carico, note e storico, spazio comune, aggiornamenti dal telefono, dati raccolti).
+Questo documento descrive cosa deve fare l'app (modulo `shared`, Android e iOS) quando l'operatore fa il login: quali dati riceve dal server, cosa scaricare sul telefono e come mostrarlo; poi cosa **manda** al server: cambi di stato, note e allegati delle attività (3.6, 3.7) e i dati raccolti negli appartamenti (3.8). Server: `C:\c\ARworksiteServer` (FastAPI), versione del 9/11/2026 sera (stati come nell'app: l'assegnato chiude, note e storico, spazio comune, aggiornamenti dal telefono, dati raccolti, vista del cantiere sul server).
 
 ## 1. Chi riceve cosa
 
@@ -185,12 +193,14 @@ Stessa struttura, con `"accesso": "squadra"`, tutti gli appartamenti del cantier
 
 ### 3.6 Stato dell'attività
 
+Come in `ActivityStates.kt` (app) e sul server, dal 9/11/2026:
+
 ```
-aperta ──"Prendo in carico"──► presa_in_carico ──"Fatto"──► da_verificare ──DL "Chiudi"──► chiusa
-  ▲  ◄────────"Rilascia"──────────┘   ▲                        │                          │
-  │                                   └──────"Annulla"─────────┘                          │
-  └───────────────────────────── DL "Riapri" (con motivo) ◄────────────────────────────────┘
-(si può anche andare direttamente da aperta a da_verificare)
+aperta ──"Prendo in carico"──► presa_in_carico ──"Chiudi" (foto e file)──► chiusa
+  ▲  ◄────────"Rilascia"─────────────┘                                        │
+  │                                     da_verificare ◄── DL "Da verificare" ─┘
+  │                                          │  (chi l'aveva aggiunge i file e richiude)
+  └──── DL "Riapri" ◄────────────────────────┴──────────────► chiusa
 ```
 
 `POST /api/mie-attivita/{id}/stato` con il token dell'app:
@@ -200,18 +210,13 @@ aperta ──"Prendo in carico"──► presa_in_carico ──"Fatto"──► 
 
 | Chi | Passaggi permessi |
 |---|---|
-| Persona assegnata all'attività | `aperta` ↔ `presa_in_carico`; `presa_in_carico` o `aperta` → `da_verificare`; `da_verificare` → `presa_in_carico` o `aperta` |
-| Direttore dei lavori della squadra del cantiere | Qualsiasi (chiude, riapre) |
+| Persona assegnata all'attività | `aperta` → `presa_in_carico`, `presa_in_carico` → `aperta` (rilascia), `presa_in_carico` → `chiusa`, `da_verificare` → `chiusa`. Mai se l'attività è in carico a un'altra persona (`in_carico`) |
+| Direttore dei lavori della squadra del cantiere | Qualsiasi (rimanda a "da verificare", riapre, chiude) |
 | Superuser (pagina web, `POST /api/attivita/{id}/stato`) | Qualsiasi |
 
-Risposte: **200** con l'attività aggiornata (stesso formato di `attivita[]`), **403** passaggio non permesso (es. l'elettricista prova a chiudere), **404** attività non visibile per quella persona, **409** già in quello stato, **422** stato sconosciuto. Ogni cambio finisce nello storico e cambia la `versione` dei dati, quindi gli altri telefoni lo vedono al prossimo `/api/miei-dati`.
+Da `aperta` a `chiusa` l'app fa due chiamate (`presa_in_carico`, poi `chiusa`: `stepsTo`). Risposte: **200** con l'attività aggiornata, **403** passaggio non permesso o attività in carico a un altro, **404** attività non visibile, **409** già in quello stato, **422** stato sconosciuto. Ogni cambio finisce nello storico e cambia la `versione` dei dati. `in_carico` resta (chi l'aveva presa) anche quando il DL la rimette `da_verificare`, così solo quella persona la richiude.
 
-Nell'app:
-- assegnatario, attività `aperta`: pulsante **"Prendo in carico"** (→ `presa_in_carico`); `presa_in_carico`: **"Rilascia"** (→ `aperta`) e **"Segna come fatta"** (→ `da_verificare`), con le foto della parete nella stessa chiamata (`aggiornamento`, 3.7); `da_verificare`: **"Annulla"**;
-- DL: su `da_verificare` **"Chiudi"** e **"Riapri"** (chiede il motivo → `nota`); su `chiusa` **"Riapri"**;
-- se l'attività ha più assegnati, `in_carico` dice chi l'ha presa ("In carico a Paolo Neri"): gli altri vedono il nome e non la riprendono (409);
-- colori: Aperta blu, Presa in carico viola, Da verificare arancio, Chiusa verde (titolo barrato), come nella pagina web;
-- senza rete: il cambio si mette in coda e si invia al prossimo collegamento; se il server risponde 403/409 si scarta e si rilegge `/api/miei-dati`.
+Nell'app (già così in `allowedStates`): assegnatario su `aperta` **"Prendo in carico"**, su `presa_in_carico` e `da_verificare` **"Chiudi"** con le foto e i file in "Aggiorna stato online" (prima i file, poi lo stato); il DL può mettere qualsiasi stato; colori: Aperta blu, Presa in carico viola, Da verificare arancio, Chiusa verde; senza rete i cambi restano in coda (`PendingStates`) e un 403/409 li scarta.
 
 **Note e storico**: `POST /api/mie-attivita/{id}/note` con `{"testo": "…"}` (chi è assegnato o il DL; 201 con l'attività aggiornata, 404 se non la vede, 422 se vuota) aggiunge una nota senza cambiare stato. Nell'app ogni attività ha "Note e storico (n)" (n = note libere + cambi di stato con nota) che apre la cronologia, dalla più vecchia: *Attività creata* (`creata`), ogni elemento di `storico_stati` ("Paolo Neri → Presa in carico" con la nota sotto) e ogni elemento di `note`, ordinati per data; in fondo il campo "Scrivi una nota…". Senza rete la nota va nella coda (punto 9 di §4).
 
@@ -222,7 +227,7 @@ Nell'app:
 | Campo | Obbligatorio | Note |
 |---|---|---|
 | `file` | no (ripetibile) | Foto, GLB, PDF… Stesse regole della pagina web: niente programmi/pagine web, massimo `ARWS_MAX_UPLOAD_MB` (200 MB) ciascuno |
-| `stato` | no | `aperta` / `presa_in_carico` / `da_verificare` / `chiusa`, con le regole di 3.6 |
+| `stato` | no | `aperta` / `presa_in_carico` / `da_verificare` / `chiusa`, con le regole di 3.6 (di solito `chiusa`) |
 | `nota` | no | Con `stato` va nello storico dello stato; senza `stato` diventa una nota libera (`note[]`) |
 | `riferimento` | no | Id app di dove è stata fatta la foto: `dwg:<DWG>/<APP n>` (appartamento), `…/<stanza>` o `…/<stanza>/Parete N` — lo stesso id di `WallCaptureStore.EXTRA_ROOM_ID` |
 
@@ -230,7 +235,7 @@ Serve almeno `file`, `stato` o `nota` (altrimenti 400). Il server controlla **pr
 ```json
 { "caricati": [12, 13], "attivita": { "...": "come in attivita[], con i nuovi allegati e lo stato" } }
 ```
-Uso tipico: dal menu della parete *"Segna l'attività come fatta"* → scegli le foto della parete (`<parete>/foto/`) → una chiamata con `stato=da_verificare`, `riferimento=<id parete>` e le foto. Si può anche mandare solo foto (senza `stato`), per esempio il DL che aggiunge la foto del problema riaprendo.
+Uso tipico: le foto della parete e `stato=chiusa` (dopo `presa_in_carico`) con `riferimento=<id parete>`; l'app oggi manda i file con `aggiornamento` e poi lo stato con `/stato`, che va bene lo stesso. Si può anche mandare solo foto (senza `stato`), per esempio il DL che aggiunge la foto del problema riaprendo.
 
 ### 3.8 Dati raccolti negli appartamenti (sincronizzazione della cartella `pareti/`)
 
@@ -268,9 +273,20 @@ Percorsi accettati: fino a 10 livelli, senza `..`, `.`, cartelle o file nascosti
    - file condivisi (`report.json`, `appartamento.json`): si scarica la versione del server, si uniscono le spunte (unione delle attività con spunta: una spunta vince sull'assenza), si ricarica con `?sostituisci=true`.
 6. Si salva `.sync.json` e la `versione`.
 
+**Dati di esempio dell'APP 3**: sul server ci sono già le foto e le due scansioni di esempio dell'app (`assets/esempio_app3`, autore «Esempio dell'app»), negli stessi percorsi. Le foto hanno lo stesso sha256 e quindi risultano `invariato`; le scansioni di esempio create sul telefono da `seedExampleScans` hanno la stessa immagine ma un `metadata.json` diverso: `ApartmentDataSync` le riconosce come **la stessa scansione** (stessa immagine nella stessa cartella `<n>/`), non le rinumera e prende il `metadata.json` del server (`sameScansAsServer`).
+
 Prima il `PUT` dei `metadata.json`/`wall.jpg` di una scansione, poi gli altri file; i file grandi (GLB) per ultimi. Senza rete non si perde niente: al giro successivo l'algoritmo ritrova le differenze da solo, non serve una coda per i dati raccolti.
 
-### 3.9 Errori
+### 3.9 Vista del cantiere sul server (per sapere cosa vede l'ufficio)
+
+La pagina web `/cantieri/{id}/vista` mostra gli stessi dati come nell'app: planimetria con i layer di `PlanLayers`, appartamento isolato, locali e pareti ricostruiti con lo stesso calcolo (`FloorPlanAnalyzer` + `RoomWallExtractor`, tradotti in `app/pianta_modello.py` sul server) e il pannello media Foto / Scansioni / File / Attività per appartamento, locale, parete, soffitto e pavimento. Perché i dati del telefono finiscano al posto giusto basta che l'app li carichi con i suoi percorsi (3.8) e che gli allegati delle attività abbiano `riferimento` (3.7). Le due API, utilizzabili anche dall'app con il token:
+
+| Chiamata | Cosa dà |
+|---|---|
+| `GET /api/piante/{id}/modello` | Layer (nome, colore, visibile all'inizio), segmenti per layer, appartamenti con perimetro, locali (nome come `displayName`, area, altezza) e pareti (`Parete N`, estremi, lunghezza, normale verso l'interno). 202 mentre si prepara la prima volta, 422 per DWG |
+| `GET /api/appartamenti/{id}/esplora` | Nodi `""` (appartamento), `"Soggiorno"`, `"Soggiorno/Parete 2"`, `"Soggiorno/Soffitto"`… con foto, file, scansioni, allegati e conteggi del sottoalbero, più le attività dell'appartamento e del suo spazio comune |
+
+### 3.10 Errori
 
 | Risposta | Significato | Cosa fa l'app |
 |---|---|---|

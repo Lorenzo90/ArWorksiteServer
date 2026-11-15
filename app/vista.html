@@ -1,0 +1,568 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Vista cantiere · ARworksite</title>
+<style>
+  :root{--bg:#f6f5f2;--card:#fff;--ink:#1f2328;--muted:#6b7078;--line:#e3e1dc;--accent:#d9661f;--accent-ink:#fff;--ok:#2f7d4f;--err:#b3261e;--soft:#fff6ef;--chip:#f1efea;
+    --plan-bg:#1b1d21;--plan-dim:rgba(27,29,33,.72);--plan-room:rgba(240,138,62,.10);--plan-room-on:rgba(240,138,62,.28);--plan-wall:#f08a3e;--plan-label:#e8e6e3;
+    --st-aperta:#2f6db3;--st-aperta-bg:#eef4fb;--st-carico:#6a45b0;--st-carico-bg:#f2edfb;--st-ver:#9a5b00;--st-ver-bg:#fff4dc;--st-chiusa:#2f7d4f;--st-chiusa-bg:#e9f5ee}
+  @media (prefers-color-scheme:dark){:root{--bg:#16181b;--card:#1f2226;--ink:#e8e6e3;--muted:#9aa0a6;--line:#33373c;--accent:#f08a3e;--accent-ink:#1a1a1a;--ok:#6cc58f;--err:#ff8a80;--soft:#2a2420;--chip:#2a2d31;
+    --plan-bg:#111316;--plan-dim:rgba(17,19,22,.74);
+    --st-aperta:#8ab8ef;--st-aperta-bg:#1d2733;--st-carico:#c3a6f5;--st-carico-bg:#251d33;--st-ver:#f2c46b;--st-ver-bg:#2e2615;--st-chiusa:#6cc58f;--st-chiusa-bg:#17291f}}
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;display:flex;flex-direction:column}
+  header{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;padding:14px 16px 10px}
+  h1{font-size:20px;margin:0} h1 span{color:var(--accent)}
+  header small{color:var(--muted)}
+  nav{margin-left:auto;display:flex;gap:4px;flex-wrap:wrap}
+  nav a{color:var(--muted);text-decoration:none;padding:6px 12px;border-radius:8px;font-weight:600}
+  nav a:hover{background:var(--card)}
+  nav a.att{background:var(--card);color:var(--accent);border:1px solid var(--line)}
+  nav form{margin:0}
+  nav .esci{background:transparent;color:var(--muted);padding:6px 12px;border:0;border-radius:8px;cursor:pointer;font:inherit;font-weight:600}
+  nav .utente{color:var(--muted);font-size:13px;align-self:center;padding:0 4px 0 10px;border-left:1px solid var(--line)}
+  .sotto{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:0 16px 10px}
+  .sotto a{color:var(--muted);text-decoration:none;font-size:14px} .sotto a:hover{color:var(--accent)}
+  .sotto h2{font-size:22px;margin:0}
+  .sotto .percorso{color:var(--muted);font-size:14px}
+  button{font:inherit;font-weight:600;padding:7px 14px;border:0;border-radius:8px;background:var(--accent);color:var(--accent-ink);cursor:pointer}
+  button.secondario{background:var(--card);color:var(--ink);border:1px solid var(--line)}
+  button.secondario:hover{border-color:var(--accent);color:var(--accent)}
+
+  .vista{flex:1;min-height:0;display:grid;grid-template-columns:230px minmax(0,1fr) 380px;gap:12px;padding:0 16px 16px}
+  .colonna{background:var(--card);border:1px solid var(--line);border-radius:12px;min-height:0;overflow:auto}
+  /* elenco appartamenti */
+  .elenco{padding:10px}
+  .elenco h4{margin:12px 6px 6px;font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);font-weight:700}
+  .elenco h4:first-child{margin-top:4px}
+  .app-voce{display:block;width:100%;text-align:left;background:transparent;color:var(--ink);border:1px solid transparent;border-radius:8px;padding:8px 10px;font-weight:600}
+  .app-voce:hover{background:var(--bg)}
+  .app-voce.att{background:var(--soft);border-color:var(--accent);color:var(--accent)}
+  .app-voce small{display:block;font-weight:400;color:var(--muted);font-size:12px}
+  /* pianta */
+  .pianta{position:relative;background:var(--plan-bg);border-radius:12px;overflow:hidden;min-height:360px;border:1px solid var(--line)}
+  .pianta svg{width:100%;height:100%;display:block;touch-action:none;cursor:grab;user-select:none}
+  .pianta svg.trascina{cursor:grabbing}
+  .pianta .stato{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#c9c7c3;font-size:15px;text-align:center;padding:24px;pointer-events:none}
+  .strumenti{position:absolute;right:10px;top:10px;display:flex;flex-direction:column;gap:6px}
+  .strumenti button{width:36px;height:36px;padding:0;background:rgba(255,255,255,.1);color:#eee;border:1px solid rgba(255,255,255,.2);font-size:18px}
+  .strumenti button:hover{background:rgba(255,255,255,.2)}
+  .info-pianta{position:absolute;left:10px;bottom:10px;color:#c9c7c3;font-size:12px;background:rgba(0,0,0,.35);padding:4px 8px;border-radius:6px}
+  .layers{position:absolute;right:54px;top:10px;background:#24272c;color:#e8e6e3;border:1px solid #3a3e44;border-radius:10px;padding:10px 12px;max-height:70%;overflow:auto;font-size:13px;min-width:210px}
+  .layers[hidden]{display:none}
+  .layers label{display:flex;gap:8px;align-items:center;padding:2px 0;cursor:pointer}
+  .layers i{display:inline-block;width:12px;height:12px;border-radius:3px}
+  .scelta{position:absolute;background:var(--card);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:8px;box-shadow:0 6px 24px rgba(0,0,0,.3);display:flex;flex-direction:column;gap:6px;z-index:5;min-width:180px}
+  .scelta[hidden]{display:none}
+  .scelta b{font-size:13px;padding:0 4px}
+  .room{fill:var(--plan-room);stroke:none;cursor:pointer}
+  .room:hover{fill:var(--plan-room-on)}
+  .room.att{fill:var(--plan-room-on)}
+  .wall{stroke:var(--plan-wall);stroke-width:5;stroke-linecap:round;cursor:pointer;opacity:.55}
+  .wall:hover{opacity:.85}
+  .wall.att{opacity:1;stroke-width:8}
+  .wall-hit{stroke:transparent;stroke-width:18;cursor:pointer}
+  .lbl{fill:var(--plan-label);font-family:system-ui,sans-serif;pointer-events:none;paint-order:stroke;stroke:#000;stroke-opacity:.55}
+  .lbl.n{fill:var(--plan-wall)}
+  .lbl.sel{fill:#fff;font-weight:700}
+  /* pannello media */
+  .media{display:flex;flex-direction:column}
+  .media .testa{padding:14px 16px 6px;border-bottom:1px solid var(--line)}
+  .media .su{background:transparent;color:var(--muted);padding:0;font-weight:600;font-size:13px}
+  .media .su:hover{color:var(--accent)}
+  .media .tipo{font-size:12px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em;margin-top:4px}
+  .media h3{margin:2px 0 4px;font-size:22px}
+  .media .dettagli{font-size:13px;color:var(--muted);margin-bottom:8px}
+  .schede{display:flex;gap:4px;flex-wrap:wrap;padding:8px 12px;border-bottom:1px solid var(--line)}
+  .schede button{background:transparent;color:var(--muted);border:1px solid transparent;padding:5px 10px;font-size:14px}
+  .schede button.att{background:var(--soft);color:var(--accent);border-color:var(--accent)}
+  .schede button span{font-weight:400;opacity:.8}
+  .corpo{padding:12px 14px 18px;overflow:auto;flex:1}
+  .cartelle{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+  .cartella{display:flex;justify-content:space-between;align-items:center;background:var(--bg);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-weight:600;font-size:14px;text-align:left;width:100%}
+  .cartella:hover{border-color:var(--accent)}
+  .cartella .c{font-weight:600;color:var(--muted);font-size:13px}
+  .cartella.vuota{opacity:.6}
+  .cartella .c b{color:var(--accent)}
+  .griglia{display:grid;grid-template-columns:repeat(auto-fill,minmax(98px,1fr));gap:8px}
+  .miniatura{position:relative;aspect-ratio:1;border-radius:8px;overflow:hidden;border:1px solid var(--line);background:var(--bg);padding:0;cursor:zoom-in}
+  .miniatura img{width:100%;height:100%;object-fit:cover;display:block}
+  .scansione{display:grid;grid-template-columns:96px 1fr;gap:10px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px;margin-bottom:8px;background:var(--bg);width:100%;text-align:left;color:var(--ink);font-weight:400;cursor:zoom-in}
+  .scansione img{width:96px;height:64px;object-fit:cover;border-radius:6px;background:#000}
+  .scansione b{display:block}
+  .scansione small{color:var(--muted)}
+  .file{display:flex;gap:8px;align-items:center;padding:6px 0;border-top:1px solid var(--line);font-size:14px}
+  .file:first-of-type{border-top:0}
+  .file a{color:var(--ink);text-decoration:none;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .file a:hover{color:var(--accent)}
+  .file small{color:var(--muted);white-space:nowrap}
+  .sottocartella{font-size:13px;font-weight:700;color:var(--muted);margin:10px 0 2px}
+  .vuoto{color:var(--muted);font-size:14px;margin:6px 0}
+  .att-voce{border:1px solid var(--line);border-radius:10px;padding:10px;margin-bottom:8px;background:var(--bg)}
+  .att-voce h5{margin:0 0 4px;font-size:15px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .att-voce p{margin:2px 0 6px;color:var(--muted);font-size:13px;white-space:pre-wrap}
+  .stato-pill{font-size:12px;font-weight:600;border-radius:20px;padding:1px 8px;border:1px solid currentColor}
+  .stato-pill.aperta{color:var(--st-aperta);background:var(--st-aperta-bg)}
+  .stato-pill.presa_in_carico{color:var(--st-carico);background:var(--st-carico-bg)}
+  .stato-pill.da_verificare{color:var(--st-ver);background:var(--st-ver-bg)}
+  .stato-pill.chiusa{color:var(--st-chiusa);background:var(--st-chiusa-bg)}
+  .badge{font-size:12px;color:var(--muted);border:1px solid var(--line);border-radius:20px;padding:1px 8px}
+  .nota{font-size:12px;color:var(--muted);margin-top:10px}
+  /* visualizzatore */
+  dialog{border:0;padding:0;background:rgba(12,12,14,.94);max-width:none;max-height:none;width:100vw;height:100vh}
+  dialog::backdrop{background:rgba(0,0,0,.86)}
+  .vis{width:100%;height:100%;display:grid;grid-template-rows:auto 1fr auto;color:#eee}
+  .vis .barra{display:flex;gap:10px;align-items:center;padding:12px 16px}
+  .vis .barra b{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .vis .barra a,.vis .barra button{color:#eee;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);padding:6px 12px;border-radius:8px;text-decoration:none;font-weight:600;font-size:14px}
+  .vis .centro{display:flex;align-items:center;justify-content:center;min-height:0;padding:0 56px;position:relative}
+  .vis .centro img{max-width:100%;max-height:100%;object-fit:contain}
+  .vis .centro model-viewer{width:100%;height:100%;--poster-color:transparent}
+  .vis .freccia{position:absolute;top:50%;transform:translateY(-50%);width:44px;height:64px;font-size:28px;background:rgba(255,255,255,.1);color:#fff;border:0;padding:0}
+  .vis .freccia.sx{left:6px} .vis .freccia.dx{right:6px}
+  .vis .didascalia{padding:10px 16px 16px;font-size:13px;color:#bbb;text-align:center}
+  @media (max-width:1100px){.vista{grid-template-columns:200px minmax(0,1fr)} .media{grid-column:1 / -1;max-height:none} .pianta{min-height:440px}}
+  @media (max-width:720px){.vista{grid-template-columns:1fr;flex:none} .colonna{overflow:visible} .pianta{height:62vh} .app-voce{flex:none} .elenco{display:flex;gap:6px;overflow-x:auto} .elenco h4{display:none} .app-voce{white-space:nowrap;width:auto}}
+</style>
+</head>
+<body>
+  <header>
+    <h1>AR<span>worksite</span> Server</h1>
+    <small id="ver"></small>
+    <nav><a href="/cantieri" class="att">Cantieri</a><a href="/docs">API</a><span class="utente" id="utente"></span><form method="post" action="/logout"><button class="esci" type="submit">Esci</button></form></nav>
+  </header>
+  <div class="sotto">
+    <a id="torna" href="/cantieri">← Scheda del cantiere</a>
+    <h2 id="titolo">…</h2>
+    <span class="percorso" id="sottotitolo"></span>
+  </div>
+
+  <div class="vista">
+    <div class="colonna elenco" id="elenco"></div>
+
+    <div class="pianta" id="pianta">
+      <svg id="svg" aria-label="Planimetria"></svg>
+      <div class="stato" id="stato-pianta">Scegli un appartamento</div>
+      <div class="strumenti">
+        <button type="button" id="z-piu" title="Ingrandisci">+</button>
+        <button type="button" id="z-meno" title="Rimpicciolisci">−</button>
+        <button type="button" id="z-adatta" title="Adatta all'appartamento">⤢</button>
+        <button type="button" id="b-layer" title="Layer">≡</button>
+      </div>
+      <div class="layers" id="layers" hidden></div>
+      <div class="info-pianta" id="info-pianta" hidden></div>
+      <div class="scelta" id="scelta" hidden>
+        <b id="scelta-titolo"></b>
+        <button type="button" class="secondario" data-sup="Soffitto">Soffitto</button>
+        <button type="button" class="secondario" data-sup="Pavimento">Pavimento</button>
+        <button type="button" class="secondario" data-sup="">Annulla</button>
+      </div>
+    </div>
+
+    <div class="colonna media" id="media">
+      <div class="testa">
+        <button type="button" class="su" id="su" hidden></button>
+        <div class="tipo" id="m-tipo"></div>
+        <h3 id="m-nome">—</h3>
+        <div class="dettagli" id="m-dettagli"></div>
+      </div>
+      <div class="schede" id="schede"></div>
+      <div class="corpo" id="m-corpo"></div>
+    </div>
+  </div>
+
+  <dialog id="vis">
+    <div class="vis">
+      <div class="barra"><b id="vis-titolo"></b><a id="vis-apri" href="#" target="_blank" rel="noopener">Apri</a><button type="button" id="vis-chiudi">Chiudi ✕</button></div>
+      <div class="centro" id="vis-centro"></div>
+      <div class="didascalia" id="vis-didascalia"></div>
+    </div>
+  </dialog>
+
+<script>
+const CFG = /*IMPOSTAZIONI*/{};
+const ID = CFG.cantiere;
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const kb = n => n < 1048576 ? Math.max(1, Math.round(n / 1024)) + " KB" : (n / 1048576).toLocaleString("it-IT", {maximumFractionDigits: 1}) + " MB";
+const data = t => t ? new Date(typeof t === "number" ? t : t).toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" }) : "";
+const m2 = v => v == null ? "" : v.toLocaleString("it-IT", { maximumFractionDigits: 2 }) + " m²";
+const metri = v => v == null ? "" : Number(v).toLocaleString("it-IT", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const SVGNS = "http://www.w3.org/2000/svg";
+const STATI = { aperta: "Aperta", presa_in_carico: "Presa in carico", da_verificare: "Da verificare", chiusa: "Chiusa" };
+const TIPI = { appartamento: "Appartamento", locale: "Locale", parete: "Parete", superficie: "Superficie del locale" };
+
+$("ver").textContent = "v" + CFG.versione;
+$("utente").textContent = CFG.utente || "";
+$("torna").href = "/cantieri/" + ID;
+
+async function api(percorso) {
+  const r = await fetch(percorso);
+  if (r.status === 401) { location.href = "/login?dopo=" + encodeURIComponent(location.pathname); throw new Error("Sessione scaduta"); }
+  const d = r.status === 204 ? null : await r.json().catch(() => ({}));
+  if (!r.ok && r.status !== 202) throw new Error(typeof d?.detail === "string" ? d.detail : "Errore " + r.status);
+  return { stato: r.status, dati: d };
+}
+
+// ---------------------------------------------------------------- stato
+let scheda = null, appSel = null, esplora = null, nodi = {}, nodoSel = "", scheda_media = "foto";
+let modello = null, appModello = null, pianta = null;
+let vista = { x: 0, y: 0, w: 1, h: 1 }, adatta = null;
+const layerVisibili = {};   // per pianta: [bool]
+
+function leggiHash() {
+  const h = new URLSearchParams(location.hash.slice(1));
+  return { app: Number(h.get("app")) || null, nodo: h.get("n") || "", scheda: h.get("s") || "" };
+}
+function scriviHash() {
+  const h = new URLSearchParams();
+  if (appSel) h.set("app", appSel.id);
+  if (nodoSel) h.set("n", nodoSel);
+  if (scheda_media !== "foto") h.set("s", scheda_media);
+  history.replaceState(null, "", "#" + h.toString());
+}
+
+// ---------------------------------------------------------------- elenco appartamenti
+async function avvia() {
+  scheda = (await api(`/api/cantieri/${ID}/scheda`)).dati;
+  $("titolo").textContent = "Vista · " + scheda.cantiere.nome;
+  document.title = "Vista · " + scheda.cantiere.nome;
+  const perPianta = {};
+  for (const a of scheda.appartamenti) (perPianta[a.pianta || ""] ||= []).push(a);
+  const nomePianta = p => p ? p.replace(/\.(dxf|dwg)$/i, "") : "Senza planimetria";
+  $("elenco").innerHTML = Object.entries(perPianta).map(([p, aps]) =>
+    `<h4 title="${esc(p)}">${esc(nomePianta(p))}</h4>` + aps.map(a => {
+      const n = a.raccolta?.n_file || 0, att = a.n_attivita || 0;
+      const sotto = [a.origine === "comune" ? "tutta la planimetria" : "", n ? n + " file" : "", att ? att + " attività" : ""].filter(Boolean).join(" · ");
+      return `<button type="button" class="app-voce" data-app="${a.id}">${esc(a.nome)}<small>${esc(sotto || "nessun dato")}</small></button>`;
+    }).join("")).join("") || `<p class="vuoto">Nessun appartamento: carica una planimetria dalla scheda del cantiere.</p>`;
+  const h = leggiHash();
+  const primo = scheda.appartamenti.find(a => a.id === h.app) || scheda.appartamenti.find(a => a.origine !== "comune") || scheda.appartamenti[0];
+  if (primo) await scegliApp(primo.id, h.app === primo.id ? h.nodo : "", h.scheda);
+}
+$("elenco").onclick = e => { const b = e.target.closest("[data-app]"); if (b) scegliApp(Number(b.dataset.app), "", ""); };
+
+async function scegliApp(id, nodo, schedaIniziale) {
+  appSel = scheda.appartamenti.find(a => a.id === id);
+  document.querySelectorAll(".app-voce").forEach(b => b.classList.toggle("att", Number(b.dataset.app) === id));
+  nodoSel = nodo || ""; if (schedaIniziale) scheda_media = schedaIniziale;
+  $("sottotitolo").textContent = appSel.pianta ? appSel.pianta : "";
+  esplora = null; nodi = {};
+  $("m-nome").textContent = appSel.nome; $("m-corpo").innerHTML = `<p class="vuoto">Caricamento…</p>`;
+  const [_, e] = await Promise.all([caricaPianta(), api(`/api/appartamenti/${id}/esplora`)]);
+  esplora = e.dati;
+  nodi = Object.fromEntries(esplora.nodi.map(n => [n.percorso, n]));
+  if (!nodi[nodoSel]) nodoSel = "";
+  disegnaPianta(); mostraNodo();
+}
+
+// ---------------------------------------------------------------- pianta
+async function caricaPianta() {
+  const p = scheda.piante.find(x => x.nome.toLowerCase() === (appSel.pianta || "").toLowerCase());
+  modello = null; appModello = null; pianta = p || null;
+  $("svg").innerHTML = ""; $("info-pianta").hidden = true;
+  if (!p) { stato(appSel.origine === "comune" ? "Spazio comune senza planimetria: i dati sono nel pannello a destra." : "Questo appartamento non ha una planimetria."); return; }
+  for (let tentativo = 0; tentativo < 120; tentativo++) {
+    let r;
+    try { r = await api(`/api/piante/${p.id}/modello`); }
+    catch (e) { stato("Planimetria non leggibile: " + e.message); return; }
+    if (r.stato === 200) { modello = r.dati; break; }
+    stato("Lettura della planimetria e delle pareti…\nLa prima volta richiede qualche secondo.");
+    await new Promise(ok => setTimeout(ok, 2000));
+    if (appSel?.pianta !== p.nome) return;
+  }
+  if (!modello) { stato("La planimetria non è ancora pronta: ricarica la pagina tra poco."); return; }
+  stato("");
+  appModello = modello.appartamenti.find(a => a.nome.toLowerCase() === appSel.nome.toLowerCase()) || null;
+  layerVisibili[p.id] ||= modello.layers.map(l => l.visibile);
+  disegnaLayer();
+  adattaVista();
+}
+function stato(t) { $("stato-pianta").textContent = t; $("stato-pianta").hidden = !t; }
+
+function adattaVista() {
+  if (!modello) return;
+  let [x0, y0, x1, y1] = modello.riquadro;
+  const poly = appModello?.poligono;
+  if (poly && poly.length >= 6) {
+    const xs = poly.filter((_, i) => i % 2 === 0), ys = poly.filter((_, i) => i % 2 === 1);
+    [x0, x1, y0, y1] = [Math.min(...xs), Math.max(...xs), Math.min(...ys), Math.max(...ys)];
+  } else if (appModello?.locali?.length) {
+    const xs = appModello.locali.map(l => l.x), ys = appModello.locali.map(l => l.y);
+    [x0, x1, y0, y1] = [Math.min(...xs) - 4, Math.max(...xs) + 4, Math.min(...ys) - 4, Math.max(...ys) + 4];
+  }
+  const m = Math.max(x1 - x0, y1 - y0) * 0.06;
+  adatta = { x: x0 - m, y: -y1 - m, w: x1 - x0 + 2 * m, h: y1 - y0 + 2 * m };
+  vista = { ...adatta }; applicaVista();
+}
+function applicaVista() {
+  const svg = $("svg"), r = svg.getBoundingClientRect();
+  // stesso rapporto del riquadro: niente deformazioni
+  const ar = r.width / Math.max(1, r.height);
+  let { x, y, w, h } = vista;
+  if (w / h > ar) { const nh = w / ar; y -= (nh - h) / 2; h = nh; } else { const nw = h * ar; x -= (nw - w) / 2; w = nw; }
+  vista = { x, y, w, h };
+  svg.setAttribute("viewBox", `${x} ${y} ${w} ${h}`);
+  // testi a dimensione costante sullo schermo
+  const px = w / Math.max(1, r.width);
+  svg.querySelectorAll("text.lbl").forEach(t => { t.setAttribute("font-size", (Number(t.dataset.px) || 13) * px); t.setAttribute("stroke-width", 3 * px); });
+  svg.querySelectorAll("text.lbl[data-dy]").forEach(t => t.setAttribute("dy", Number(t.dataset.dy) * px));
+}
+
+function disegnaLayer() {
+  const svg = $("svg");
+  let g = svg.querySelector("#g-layer");
+  if (!g) { g = document.createElementNS(SVGNS, "g"); g.id = "g-layer"; g.setAttribute("transform", "scale(1,-1)"); svg.prepend(g); }
+  const vis = layerVisibili[pianta.id];
+  g.innerHTML = modello.layers.map((l, i) => {
+    if (!vis[i] || !modello.segmenti[i].length) return "";
+    const s = modello.segmenti[i]; let d = "";
+    for (let k = 0; k < s.length; k += 4) d += `M${s[k]} ${s[k + 1]}L${s[k + 2]} ${s[k + 3]}`;
+    return `<path d="${d}" stroke="${l.colore}" stroke-width="1" fill="none" vector-effect="non-scaling-stroke" opacity=".9"/>`;
+  }).join("");
+  $("layers").innerHTML = `<b>Layer</b>` + modello.layers.map((l, i) => l.n_segmenti ?
+    `<label><input type="checkbox" data-layer="${i}" ${vis[i] ? "checked" : ""}><i style="background:${l.colore}"></i>${esc(l.nome)} <small style="opacity:.6">${l.n_segmenti}</small></label>` : "").join("");
+}
+$("layers").onchange = e => { const c = e.target.closest("[data-layer]"); if (!c) return; layerVisibili[pianta.id][Number(c.dataset.layer)] = c.checked; disegnaLayer(); };
+$("b-layer").onclick = () => { $("layers").hidden = !$("layers").hidden; };
+
+const parti = p => p ? p.split("/") : [];
+function disegnaPianta() {
+  const svg = $("svg");
+  svg.querySelector("#g-sopra")?.remove();
+  if (!modello) return;
+  const g = document.createElementNS(SVGNS, "g"); g.id = "g-sopra"; svg.append(g);
+  let html = "";
+  // gli altri appartamenti in ombra, quello scelto in evidenza (isolateApartment)
+  for (const a of modello.appartamenti) {
+    if (!a.poligono.length) continue;
+    const pts = [];
+    for (let i = 0; i < a.poligono.length; i += 2) pts.push(`${a.poligono[i]},${-a.poligono[i + 1]}`);
+    if (appModello && a !== appModello) html += `<polygon points="${pts.join(" ")}" fill="var(--plan-dim)" stroke="none"/>`;
+    if (a === appModello) html += `<polygon points="${pts.join(" ")}" fill="none" stroke="#f08a3e" stroke-width="2" stroke-dasharray="6 4" vector-effect="non-scaling-stroke"/>`;
+  }
+  const [locSel, supSel] = parti(nodoSel);
+  if (appModello) {
+    for (const l of appModello.locali) {
+      if (!l.pareti) continue;
+      const pts = l.pareti.map(w => `${w.x1},${-w.y1}`).join(" ");
+      html += `<polygon class="room${l.nome === locSel ? " att" : ""}" data-locale="${esc(l.nome)}" points="${pts}"/>`;
+    }
+    const sel = appModello.locali.find(l => l.nome === locSel);
+    if (sel?.pareti) {
+      for (const w of sel.pareti) {
+        const on = supSel === w.nome;
+        html += `<line class="wall${on ? " att" : ""}" x1="${w.x1}" y1="${-w.y1}" x2="${w.x2}" y2="${-w.y2}" vector-effect="non-scaling-stroke"/>`;
+        html += `<line class="wall-hit" data-parete="${esc(w.nome)}" x1="${w.x1}" y1="${-w.y1}" x2="${w.x2}" y2="${-w.y2}" vector-effect="non-scaling-stroke"><title>${esc(w.nome)} · ${metri(w.lunghezza)} m</title></line>`;
+      }
+    }
+    for (const l of appModello.locali) {
+      const on = l.nome === locSel;
+      const sotto = on && (supSel === "Soffitto" || supSel === "Pavimento") ? supSel : m2(l.area);
+      html += `<text class="lbl${on ? " sel" : ""}" data-px="13" x="${l.x}" y="${-l.y}" text-anchor="middle">${esc(l.nome)}</text>`;
+      html += `<text class="lbl" data-px="11" data-dy="15" x="${l.x}" y="${-l.y}" text-anchor="middle" opacity=".8">${esc(sotto)}</text>`;
+    }
+    if (sel?.pareti) {
+      for (const w of sel.pareti) {
+        // numero della parete un po' dentro il locale, sul suo punto medio
+        const mx = (w.x1 + w.x2) / 2 + w.nx * 0.35, my = (w.y1 + w.y2) / 2 + w.ny * 0.35;
+        html += `<text class="lbl n" data-px="13" data-dy="4" x="${mx}" y="${-my}" text-anchor="middle" font-weight="700">${w.numero}</text>`;
+      }
+    }
+  }
+  g.innerHTML = html;
+  const info = appModello ? [appModello.nome, modello.titolo, appModello.area_perimetro ? m2(appModello.area_perimetro) + " commerciali" : "", m2(appModello.area_locali) + " dei locali"].filter(Boolean).join(" · ")
+                          : (appSel?.origine === "comune" ? "Spazio comune · tutta la planimetria" + (modello.titolo ? " · " + modello.titolo : "") : "");
+  $("info-pianta").textContent = info; $("info-pianta").hidden = !info;
+  applicaVista();
+}
+
+// scelta sulla pianta: locale, parete, soffitto/pavimento (toccando di nuovo il locale)
+$("svg").addEventListener("click", e => {
+  if (trascinato) return;
+  const w = e.target.closest("[data-parete]");
+  const [locSel] = parti(nodoSel);
+  if (w) { vai(locSel + "/" + w.dataset.parete); return; }
+  const r = e.target.closest("[data-locale]");
+  if (r) {
+    const nome = r.dataset.locale;
+    if (nome === locSel) {
+      const box = $("pianta").getBoundingClientRect();
+      const s = $("scelta"); $("scelta-titolo").textContent = nome + ": soffitto o pavimento?";
+      s.style.left = Math.min(e.clientX - box.left, box.width - 200) + "px"; s.style.top = Math.min(e.clientY - box.top, box.height - 150) + "px";
+      s.hidden = false; return;
+    }
+    vai(nome); return;
+  }
+  $("scelta").hidden = true;
+});
+$("scelta").onclick = e => { const b = e.target.closest("[data-sup]"); if (!b) return; $("scelta").hidden = true; if (b.dataset.sup) vai(parti(nodoSel)[0] + "/" + b.dataset.sup); };
+
+// zoom e spostamento
+let trascina = null, trascinato = false;
+function zoom(f, cx, cy) {
+  const r = $("svg").getBoundingClientRect();
+  const px = cx == null ? 0.5 : (cx - r.left) / r.width, py = cy == null ? 0.5 : (cy - r.top) / r.height;
+  const nw = vista.w * f, nh = vista.h * f;
+  vista = { x: vista.x + (vista.w - nw) * px, y: vista.y + (vista.h - nh) * py, w: nw, h: nh }; applicaVista();
+}
+$("svg").addEventListener("wheel", e => { e.preventDefault(); zoom(e.deltaY > 0 ? 1.15 : 1 / 1.15, e.clientX, e.clientY); }, { passive: false });
+$("svg").addEventListener("pointerdown", e => { trascina = { x: e.clientX, y: e.clientY, v: { ...vista } }; trascinato = false; });
+window.addEventListener("pointermove", e => {
+  if (!trascina) return;
+  const dx = e.clientX - trascina.x, dy = e.clientY - trascina.y;
+  if (!trascinato && Math.hypot(dx, dy) < 4) return;
+  trascinato = true; $("svg").classList.add("trascina");
+  const r = $("svg").getBoundingClientRect(), k = trascina.v.w / r.width;
+  vista = { ...trascina.v, x: trascina.v.x - dx * k, y: trascina.v.y - dy * k }; applicaVista();
+});
+window.addEventListener("pointerup", () => { trascina = null; $("svg").classList.remove("trascina"); setTimeout(() => { trascinato = false; }, 0); });
+$("svg").addEventListener("dblclick", () => { if (adatta) { vista = { ...adatta }; applicaVista(); } });
+$("z-piu").onclick = () => zoom(1 / 1.4); $("z-meno").onclick = () => zoom(1.4);
+$("z-adatta").onclick = () => { if (adatta) { vista = { ...adatta }; applicaVista(); } };
+window.addEventListener("resize", () => applicaVista());
+
+// ---------------------------------------------------------------- pannello media
+function vai(percorso) { nodoSel = percorso; disegnaPianta(); mostraNodo(); }
+
+function infoNodo(n) {
+  const [loc, sup] = parti(n.percorso);
+  const lm = appModello?.locali.find(l => l.nome === loc);
+  if (n.tipo === "appartamento") return appModello ? [appModello.locali.length + " locali", appModello.area_perimetro ? m2(appModello.area_perimetro) : ""].filter(Boolean).join(" · ") : (appSel.origine === "comune" ? "Tutta la planimetria" : "");
+  // come l'app (heightOrDefault): senza altezza scritta nella pianta si usa 2,70 m
+  const h = lm ? (lm.altezza ? metri(lm.altezza) + " m" : "2,70 m (predefinita)") : "";
+  if (n.tipo === "locale") return lm ? [m2(lm.area), "h " + h, lm.pareti ? lm.pareti.length + " pareti" : "pareti non ricostruite"].filter(Boolean).join(" · ") : "Non trovato nella planimetria";
+  const w = lm?.pareti?.find(x => x.nome === sup);
+  if (w) return `${metri(w.lunghezza)} m × ${h}`;
+  return n.tipo === "superficie" && lm ? m2(lm.area) : "";
+}
+
+function mostraNodo() {
+  scriviHash();
+  const n = nodi[nodoSel] || nodi[""];
+  if (!n) return;
+  const p = parti(n.percorso);
+  $("m-tipo").textContent = TIPI[n.tipo];
+  $("m-nome").textContent = n.tipo === "appartamento" ? appSel.nome : p[p.length - 1];
+  $("m-dettagli").textContent = infoNodo(n);
+  if (p.length) { const su = p.length > 1 ? p[0] : appSel.nome; $("su").textContent = "‹ " + su; $("su").hidden = false; } else $("su").hidden = true;
+  const c = n.conteggi, att = attivitaDelNodo(n).length;
+  const voci = [["foto", "Foto", c.foto], ["scansioni", "Scansioni", c.scansioni], ["file", "File", c.file], ["attivita", "Attività", att]];
+  $("schede").innerHTML = voci.map(([k, t, v]) => `<button type="button" data-scheda="${k}" class="${scheda_media === k ? "att" : ""}">${t} <span>${v}</span></button>`).join("");
+  $("m-corpo").innerHTML = corpo(n);
+}
+$("su").onclick = () => { const p = parti(nodoSel); p.pop(); vai(p.join("/")); };
+$("schede").onclick = e => { const b = e.target.closest("[data-scheda]"); if (!b) return; scheda_media = b.dataset.scheda; mostraNodo(); };
+
+const quanti = (n, k) => k === "attivita" ? (n.conteggi.allegati || 0) : n.conteggi[k];
+function cartelle(n) {
+  if (!n.figli.length) return "";
+  const k = scheda_media;
+  return `<div class="cartelle">${n.figli.map(f => {
+    const x = nodi[f], v = quanti(x, k);
+    return `<button type="button" class="cartella${v ? "" : " vuota"}" data-vai="${esc(f)}"><span>${esc(x.nome)}</span><span class="c">${v ? `<b>${v}</b>` : "0"} ›</span></button>`;
+  }).join("")}</div>`;
+}
+let elementiVis = [];  // per il visualizzatore (prec./succ.)
+function corpo(n) {
+  elementiVis = [];
+  const k = scheda_media;
+  let h = cartelle(n);
+  if (k === "foto") {
+    h += n.foto.length ? `<div class="griglia">${n.foto.map(f => {
+      const i = elementiVis.push({ url: f.url_download, nome: f.percorso.split("/").pop(), info: `${f.chi} · ${data(f.modificato_dispositivo || f.caricato)}` }) - 1;
+      return `<button type="button" class="miniatura" data-vis="${i}" title="${esc(f.percorso)}"><img loading="lazy" src="${esc(f.url_download)}?inline=true" alt=""></button>`;
+    }).join("")}</div>` : (n.conteggi.foto ? "" : `<p class="vuoto">Nessuna foto qui.</p>`);
+  } else if (k === "scansioni") {
+    h += n.scansioni.map(s => {
+      if (!s.immagine) return `<div class="scansione"><span></span><span><b>${esc(s.nome)}</b><small>Immagine non ancora caricata</small></span></div>`;
+      const dim = s.larghezza ? `${metri(s.larghezza)} × ${metri(s.altezza)} m` : "";
+      const i = elementiVis.push({ url: s.immagine.url_download, nome: s.nome, info: [dim, s.marker === -1 || s.marker == null ? "libera" : "con marker", s.chi, data(s.creata || s.immagine.caricato)].filter(Boolean).join(" · ") }) - 1;
+      return `<button type="button" class="scansione" data-vis="${i}"><img loading="lazy" src="${esc(s.immagine.url_download)}?inline=true" alt=""><span><b>${esc(s.nome)}</b><small>${esc([dim, s.chi, data(s.creata || s.immagine.caricato)].filter(Boolean).join(" · "))}</small></span></button>`;
+    }).join("") || (n.conteggi.scansioni ? "" : `<p class="vuoto">Nessuna scansione qui.</p>`);
+  } else if (k === "file") {
+    const gruppi = {};
+    for (const f of n.file) (gruppi[f.sottocartella || ""] ||= []).push(f);
+    // prima i file sciolti in file/, poi le cartelle dell'utente in ordine alfabetico
+    h += Object.entries(gruppi).sort(([a], [b]) => a === "" ? -1 : b === "" ? 1 : a.localeCompare(b, "it")).map(([g, fs]) => (g ? `<div class="sottocartella">📁 ${esc(g.replaceAll("/", " › "))}</div>` : "") + fs.map(f =>
+      `<div class="file">📄 <a href="${esc(f.url_download)}?inline=true" target="_blank" rel="noopener" title="${esc(f.percorso)}">${esc(f.percorso.split("/").pop())}</a><small>${kb(f.dimensione)} · ${esc(f.chi)}</small></div>`).join("")).join("")
+      || (n.conteggi.file ? "" : `<p class="vuoto">Nessun file qui.</p>`);
+    if (n.altri.length) h += `<p class="nota">Dati dell'app: ${n.altri.map(f => `<a href="${esc(f.url_download)}?inline=true" target="_blank" rel="noopener">${esc(f.percorso.split("/").pop())}</a>`).join(", ")}</p>`;
+  } else {
+    h += attivita(n);
+  }
+  return h;
+}
+function attivitaDelNodo(n) {
+  if (!esplora) return [];
+  if (n.tipo === "appartamento") return esplora.attivita;
+  const dentro = new Set(); raccogliAllegati(n, dentro);
+  return esplora.attivita.filter(a => a.allegati.some(f => dentro.has(f.id)));
+}
+function raccogliAllegati(n, set) { n.allegati.forEach(f => set.add(f.id)); n.figli.forEach(f => raccogliAllegati(nodi[f], set)); }
+function attivita(n) {
+  const lista = attivitaDelNodo(n);
+  if (!lista.length) return `<p class="vuoto">${n.tipo === "appartamento" ? "Nessuna attività per questo appartamento." : "Nessun allegato di attività riferito a questo punto."}</p>`;
+  const qui = new Set(); raccogliAllegati(n, qui);
+  return lista.map(a => {
+    const allegati = n.tipo === "appartamento" ? a.allegati : a.allegati.filter(f => qui.has(f.id));
+    const comune = a.appartamento && a.appartamento.id !== appSel.id ? `<span class="badge">${esc(a.appartamento.nome)}</span>` : "";
+    return `<div class="att-voce"><h5>${esc(a.titolo)} <span class="stato-pill ${a.stato}">${esc(a.stato_nome)}</span>${comune}</h5>
+      ${a.descrizione ? `<p>${esc(a.descrizione)}</p>` : ""}
+      ${a.in_carico ? `<p>In carico a ${esc(a.in_carico.chi)}</p>` : ""}
+      ${allegati.length ? `<div class="griglia">${allegati.map(f => {
+        const i = elementiVis.push({ url: f.url_download, nome: f.nome, tipo: f.tipo, info: [f.chi, data(f.caricato), f.riferimento ? "📍 " + f.riferimento.split("/").slice(2).join(" › ") : ""].filter(Boolean).join(" · ") }) - 1;
+        return f.tipo === "foto" ? `<button type="button" class="miniatura" data-vis="${i}" title="${esc(f.nome)}"><img loading="lazy" src="${esc(f.url_download)}?inline=true" alt=""></button>`
+          : `<button type="button" class="miniatura" data-vis="${i}" title="${esc(f.nome)}" style="display:flex;align-items:center;justify-content:center;font-size:12px;color:var(--muted);padding:6px">${f.tipo === "scansione3d" ? "🧊" : "📄"}<br>${esc(f.nome)}</button>`;
+      }).join("")}</div>` : ""}</div>`;
+  }).join("");
+}
+$("m-corpo").onclick = e => {
+  const c = e.target.closest("[data-vai]"); if (c) { vai(c.dataset.vai); return; }
+  const v = e.target.closest("[data-vis]"); if (v) apriVis(Number(v.dataset.vis));
+};
+
+// ---------------------------------------------------------------- visualizzatore
+let visIndice = 0;
+function caricaModelViewer() {
+  if (customElements.get("model-viewer")) return Promise.resolve();
+  return new Promise((ok, ko) => {
+    const s = document.createElement("script"); s.type = "module";
+    s.src = "https://cdn.jsdelivr.net/npm/@google/model-viewer@3.5.0/dist/model-viewer.min.js";
+    s.onload = () => customElements.whenDefined("model-viewer").then(ok); s.onerror = ko; document.head.append(s);
+  });
+}
+async function apriVis(i) {
+  visIndice = i; const el = elementiVis[i]; if (!el) return;
+  $("vis-titolo").textContent = el.nome; $("vis-didascalia").textContent = el.info || "";
+  $("vis-apri").href = el.url + "?inline=true";
+  const glb = /\.glb$/i.test(el.nome), img = !glb && (el.tipo ? el.tipo === "foto" : true) && /\.(jpe?g|png|webp|bmp|gif|heic)$/i.test(el.nome) || /wall\.(jpg|png)$/i.test(el.url);
+  const frecce = elementiVis.length > 1 ? `<button type="button" class="freccia sx" id="vis-prec">‹</button><button type="button" class="freccia dx" id="vis-succ">›</button>` : "";
+  if (glb) {
+    $("vis-centro").innerHTML = `<p>Caricamento del modello 3D…</p>${frecce}`;
+    try { await caricaModelViewer(); $("vis-centro").innerHTML = `<model-viewer src="${esc(el.url)}?inline=true" camera-controls auto-rotate shadow-intensity="1"></model-viewer>${frecce}`; }
+    catch (e) { $("vis-centro").innerHTML = `<p>Visualizzatore 3D non disponibile (serve internet). Usa «Apri».</p>${frecce}`; }
+  } else if (img) {
+    $("vis-centro").innerHTML = `<img src="${esc(el.url)}?inline=true" alt="">${frecce}`;
+  } else {
+    $("vis-centro").innerHTML = `<p>Anteprima non disponibile: usa «Apri».</p>${frecce}`;
+  }
+  $("vis-prec")?.addEventListener("click", () => apriVis((visIndice - 1 + elementiVis.length) % elementiVis.length));
+  $("vis-succ")?.addEventListener("click", () => apriVis((visIndice + 1) % elementiVis.length));
+  if (!$("vis").open) $("vis").showModal();
+}
+$("vis-chiudi").onclick = () => $("vis").close();
+$("vis").addEventListener("click", e => { if (e.target === $("vis") || e.target.classList.contains("centro")) $("vis").close(); });
+document.addEventListener("keydown", e => {
+  if (!$("vis").open) { if (e.key === "Escape") $("scelta").hidden = true; return; }
+  if (e.key === "ArrowLeft") apriVis((visIndice - 1 + elementiVis.length) % elementiVis.length);
+  if (e.key === "ArrowRight") apriVis((visIndice + 1) % elementiVis.length);
+});
+
+avvia().catch(e => { $("titolo").textContent = e.message; });
+</script>
+</body>
+</html>

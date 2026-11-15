@@ -119,7 +119,7 @@ def test_aggiornamento_attivita_con_foto_e_stato(su):
                                          "appartamento_id": a["id"], "persone_ids": [anna["id"]]}).json()
     url = f"/api/mie-attivita/{att['id']}/aggiornamento"
     rif = a["id_app"] + "/Bagno/Parete 1"
-    assert c.post(f"/api/mie-attivita/{att['id']}/stato", headers=h, json={"stato": "presa_in_carico"}).status_code == 200
+    assert c.post(f"/api/mie-attivita/{att['id']}/stato", json={"stato": "presa_in_carico"}, headers=h).status_code == 200
     r = c.post(url, headers=h, data={"stato": "chiusa", "nota": "Fatto", "riferimento": rif},
                files=[("file", ("p1.jpg", b"\xff\xd81", "image/jpeg")), ("file", ("p2.jpg", b"\xff\xd82", "image/jpeg"))])
     assert r.status_code == 200, r.text
@@ -127,7 +127,7 @@ def test_aggiornamento_attivita_con_foto_e_stato(su):
     assert x["stato"] == "chiusa" and len(r.json()["caricati"]) == 2
     assert {(f["chi"], f["riferimento"]) for f in x["allegati"]} == {("Anna Prova", rif)}
     assert c.get(x["allegati"][0]["url_download"], headers=h).status_code == 200
-    # passaggio non permesso: non salva neanche i file
+    # passaggio non permesso (riaprire spetta al DL): non salva neanche i file
     r = c.post(url, headers=h, data={"stato": "aperta"}, files=[("file", ("p3.jpg", b"3", "image/jpeg"))])
     assert r.status_code == 403
     assert len(su.get(f"/api/attivita/{att['id']}").json()["allegati"]) == 2

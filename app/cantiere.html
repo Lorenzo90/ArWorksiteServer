@@ -25,6 +25,8 @@
   .indietro:hover{color:var(--accent)}
   .titolo{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;margin:6px 0 18px}
   .titolo h2{font-size:26px;margin:0}
+  .vista-link{margin-left:auto;color:var(--accent);font-weight:600;text-decoration:none;font-size:14px;border:1px solid var(--line);background:var(--card);border-radius:8px;padding:6px 12px}
+  .vista-link:hover{border-color:var(--accent)}
   .numeri{display:flex;gap:8px;flex-wrap:wrap}
   .num{font-size:13px;color:var(--muted);background:var(--card);border:1px solid var(--line);border-radius:20px;padding:2px 10px}
   .num b{color:var(--ink)}
@@ -153,7 +155,8 @@
   </header>
 
   <a class="indietro" href="/cantieri">← Tutti i cantieri</a>
-  <div class="titolo"><h2 id="nome">…</h2><div class="numeri" id="numeri"></div></div>
+  <div class="titolo"><h2 id="nome">…</h2><div class="numeri" id="numeri"></div>
+    <a id="apri-vista" class="vista-link" href="#">Vista del cantiere: pianta, locali, pareti e media →</a></div>
 
   <div class="cred" id="cred" hidden>
     <div><b>Nuova persona</b><span id="cred-nome"></span></div>
@@ -248,6 +251,7 @@ const noteAperte = new Set(), bozzeNote = {};  // pannelli aperti e testo non an
 const STATI = { aperta: "Aperta", presa_in_carico: "Presa in carico", da_verificare: "Da verificare", chiusa: "Chiusa" };
 
 $("ver").textContent = "v" + CFG.versione;
+$("apri-vista").href = `/cantieri/${ID}/vista`;
 $("utente").textContent = CFG.utente || "";
 const alLogin = () => { location.href = "/login?dopo=/cantieri/" + ID; };
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));

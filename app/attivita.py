@@ -1,9 +1,10 @@
 """Attività: titolo, descrizione, cantiere (facoltativo), persone assegnate, allegati e stato.
 
-Stati: aperta → presa_in_carico (un assegnato la prende e ci lavora) → chiusa (la chiude lui, con foto,
-file e nota). Da chiusa la rimette da_verificare solo il server (superuser dalla pagina web o Direttore
-dei lavori): chi l'aveva in carico aggiunge altri file e la richiude. Il DL della squadra del cantiere
-(e il superuser) può mettere qualsiasi stato.
+Stati, come li usa l'app (ActivityStates.kt): aperta → presa_in_carico (un assegnato ci lavora)
+→ chiusa (lavoro fatto, con foto e file). "da_verificare" lo mette il Direttore dei lavori (o la pagina
+web) per far ricontrollare: chi l'aveva aggiunge i file e la chiude di nuovo. Chi è assegnato può
+prenderla, rilasciarla e chiuderla, ma non se l'ha presa un'altra persona; il DL della squadra del
+cantiere (e il superuser dalla pagina web) può mettere qualsiasi stato.
 
 Gli allegati stanno in <cartella dell'archivio>/attivita/<id attività>/ con un nome interno univoco;
 nel database restano il nome originale, il tipo (foto / scansione3d / file), la dimensione e l'impronta.
@@ -26,11 +27,11 @@ ESTENSIONI_VIETATE = {".exe", ".bat", ".cmd", ".com", ".msi", ".ps1", ".vbs", ".
 
 STATI = {"aperta": "Aperta", "presa_in_carico": "Presa in carico", "da_verificare": "Da verificare", "chiusa": "Chiusa"}
 STATO_INIZIALE = "aperta"
-# Passaggi permessi a chi è assegnato all'attività (il DL può tutto). Da verificare la mette solo il server.
+# Passaggi permessi a chi è assegnato all'attività (il DL può tutto).
 PASSAGGI_ASSEGNATARIO = {
-    ("aperta", "presa_in_carico"), ("presa_in_carico", "aperta"),             # prende in carico / rilascia
-    ("presa_in_carico", "chiusa"),                                            # fatto: chiude
-    ("da_verificare", "chiusa"),                                              # rivista: richiude
+    ("aperta", "presa_in_carico"), ("presa_in_carico", "aperta"),   # prende in carico / rilascia
+    ("presa_in_carico", "chiusa"),                                  # fatto
+    ("da_verificare", "chiusa"),                                    # ricontrollata e richiusa
 }
 # Stati in cui conta chi ha preso in carico l'attività.
 _CON_INCARICATO = {"presa_in_carico", "da_verificare"}

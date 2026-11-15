@@ -15,11 +15,12 @@ from typing import Optional
 
 from fastapi import Depends, FastAPI, File, Form, Header, HTTPException, Request, Response, UploadFile
 from fastapi.openapi.docs import get_swagger_ui_html
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import FileResponse, HTMLResponse, JSONResponse, RedirectResponse
 from pydantic import BaseModel
 
 from . import (__version__, accesso_api, appartamenti, appartamenti_api, attivita_api, cantieri_api, config, db, pacchetto,
-               piante, raccolta_api)
+               modelli, piante, raccolta_api, vista_api)
 from .sicurezza import COOKIE, admin_corrente, admin_o_app, archivio_pronto, solo_admin
 
 # La documentazione è servita più sotto, solo al superuser collegato.
@@ -31,14 +32,17 @@ app = FastAPI(title="ARworksite Server", version=__version__, docs_url=None, red
 def _avvio() -> None:
     # Al primo avvio crea l'archivio, il superuser e il file con le password iniziali.
     archivio_pronto()
+    modelli.prepara_tutte()  # modelli delle planimetrie (pareti) in sottofondo
 
 
+app.add_middleware(GZipMiddleware, minimum_size=2000)
 app.include_router(cantieri_api.router)
 app.include_router(accesso_api.router)
 app.include_router(attivita_api.router)
 app.include_router(attivita_api.router_file)
 app.include_router(appartamenti_api.router)
 app.include_router(raccolta_api.router)
+app.include_router(vista_api.router)
 
 
 class PiantaOut(BaseModel):
@@ -271,6 +275,14 @@ def pagina_scheda_cantiere(id_cantiere: int, request: Request):
         return _al_login(request)
     return _pagina("cantiere.html", {"versione": __version__, "utente": admin["username"],
                                      "maxMb": config.MAX_UPLOAD_MB, "cantiere": id_cantiere})
+
+
+@app.get("/cantieri/{id_cantiere}/vista", response_class=HTMLResponse, include_in_schema=False)
+def pagina_vista_cantiere(id_cantiere: int, request: Request):
+    admin = admin_corrente(request)
+    if not admin:
+        return _al_login(request)
+    return _pagina("vista.html", {"versione": __version__, "utente": admin["username"], "cantiere": id_cantiere})
 
 
 @app.get("/attivita", include_in_schema=False)

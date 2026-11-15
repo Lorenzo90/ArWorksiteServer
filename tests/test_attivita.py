@@ -186,47 +186,50 @@ def test_solo_persone_della_squadra(su):
     assert su.get(f"/api/attivita/{a['id']}").json()["assegnatari"] == []
 
 
-def test_stato_aperta_da_verificare_chiusa(su):
+def test_stati_come_app(su):
+    """Il flusso dell'app (ActivityStates.kt): chi è assegnato prende in carico e chiude; il DL rimette
+    «da verificare» per far ricontrollare e chi l'aveva la richiude; nessuno tocca quella di un altro."""
     anna, bruno = nuova_persona(su, "Anna", "Gialli", "EL"), nuova_persona(su, "Bruno", "Blu", "EL")
     cid = in_squadra(su, anna, bruno)
-    a = su.post("/api/attivita", json={"titolo": "Tracce", "appartamento_id": sc(su, cid), "persone_ids": [anna["id"]]}).json()
-    assert a["stato"] == "aperta" and a["stato_nome"] == "Aperta" and a["storico_stati"] == []
+    a = su.post("/api/attivita", json={"titolo": "Tracce", "appartamento_id": sc(su, cid),
+                                       "persone_ids": [anna["id"], bruno["id"]]}).json()
+    assert a["stato"] == "aperta" and a["storico_stati"] == [] and a["in_carico"] is None
     c, _, h = entra_app("anna.gialli", anna["password"])
-    # l'operatore assegnato: non chiude senza prenderla in carico, non la mette da verificare
     url = f"/api/mie-attivita/{a['id']}/stato"
+    # aperta → chiusa senza prenderla prima: no (l'app passa da «presa in carico», stepsTo)
     assert c.post(url, json={"stato": "chiusa"}, headers=h).status_code == 403
-    assert c.post(url, json={"stato": "da_verificare"}, headers=h).status_code == 403
-    assert c.post(url, json={"stato": "finita"}, headers=h).status_code == 422
-    # la prende in carico e la chiude con una nota
-    assert c.post(url, json={"stato": "presa_in_carico"}, headers=h).status_code == 200
-    r = c.post(url, json={"stato": "chiusa", "nota": "Fatto, vedi foto"}, headers=h)
-    assert r.status_code == 200, r.text
-    assert r.json()["stato"] == "chiusa" and r.json()["storico_stati"][-1]["chi"] == "Anna Gialli"
-    assert c.post(url, json={"stato": "chiusa"}, headers=h).status_code == 409
-    # da chiusa non la riapre, non la rimette da verificare
-    assert c.post(url, json={"stato": "da_verificare"}, headers=h).status_code == 403
-    assert c.post(url, json={"stato": "aperta"}, headers=h).status_code == 403
-    # chi non è assegnato non la vede
+    r = c.post(url, json={"stato": "presa_in_carico"}, headers=h)
+    assert r.status_code == 200 and r.json()["in_carico"]["chi"] == "Anna Gialli"
+    # Bruno è assegnato ma l'ha presa Anna: non la chiude e non la rilascia
     c2, d2, h2 = entra_app("bruno.blu", bruno["password"])
-    assert d2["attivita"] == []
-    assert c2.post(f"/api/mie-attivita/{a['id']}/stato", json={"stato": "aperta"}, headers=h2).status_code == 404
-    # il DL della squadra (Mario Rossi) la riceve anche se non assegnato e la rimette da verificare
+    assert d2["attivita"][0]["in_carico"]["persona_id"] == anna["id"]
+    r = c2.post(url, json={"stato": "chiusa"}, headers=h2)
+    assert r.status_code == 403 and "Anna Gialli" in r.json()["detail"]
+    assert c2.post(url, json={"stato": "aperta"}, headers=h2).status_code == 403
+    # «da verificare» non lo mette chi lavora
+    assert c.post(url, json={"stato": "da_verificare"}, headers=h).status_code == 403
+    r = c.post(url, json={"stato": "chiusa", "nota": "Fatto, vedi foto"}, headers=h)
+    assert r.status_code == 200 and r.json()["stato"] == "chiusa" and r.json()["in_carico"] is None
+    assert c.post(url, json={"stato": "chiusa"}, headers=h).status_code == 409
+    assert c.post(url, json={"stato": "aperta"}, headers=h).status_code == 403  # riaprire: solo il DL
+    assert c.post(url, json={"stato": "finita"}, headers=h).status_code == 422
+    # il DL della squadra (Mario Rossi) la riceve anche se non assegnato e la rimanda «da verificare»
     mario = persona(su, "Mario")
     pw = su.post(f"/api/persone/{mario['id']}/password").json()["password"]
     c3, d3, h3 = entra_app("mario.rossi", pw)
     assert [x["titolo"] for x in d3["attivita"]] == ["Tracce"]
-    r = c3.post(url, json={"stato": "da_verificare", "nota": "Manca la presa"}, headers=h3)
-    assert r.status_code == 200 and r.json()["stato"] == "da_verificare"
-    # Anna la vede da verificare, ancora a suo nome, e la richiude
-    x = c.get("/api/miei-dati", headers=h).json()["attivita"][0]
-    assert x["stato"] == "da_verificare" and x["in_carico"]["chi"] == "Anna Gialli"
-    assert c.post(url, json={"stato": "chiusa", "nota": "Presa montata"}, headers=h).status_code == 200
-    # il superuser la riapre; lo storico tiene tutto
-    r = su.post(f"/api/attivita/{a['id']}/stato", json={"stato": "aperta", "nota": "Da rifare"})
+    r = c3.post(url, json={"stato": "da_verificare", "nota": "Manca la presa in bagno"}, headers=h3)
+    assert r.status_code == 200 and r.json()["in_carico"]["chi"] == "Anna Gialli"  # torna a chi l'aveva
+    # Anna aggiunge e richiude; Bruno no
+    assert c2.post(url, json={"stato": "chiusa"}, headers=h2).status_code == 403
+    r = c.post(url, json={"stato": "chiusa"}, headers=h)
+    assert r.status_code == 200
     assert [(x["stato"], x["chi"]) for x in r.json()["storico_stati"]] == [
-        ("presa_in_carico", "Anna Gialli"), ("chiusa", "Anna Gialli"), ("da_verificare", "Mario Rossi"),
-        ("chiusa", "Anna Gialli"), ("aperta", "Superuser")]
-    assert r.json()["storico_stati"][2]["nota"] == "Manca la presa"
+        ("presa_in_carico", "Anna Gialli"), ("chiusa", "Anna Gialli"),
+        ("da_verificare", "Mario Rossi"), ("chiusa", "Anna Gialli")]
+    assert r.json()["storico_stati"][2]["nota"] == "Manca la presa in bagno"
+    # il superuser dalla pagina web può tutto
+    assert su.post(f"/api/attivita/{a['id']}/stato", json={"stato": "aperta"}).json()["stato"] == "aperta"
     assert c.get("/api/miei-dati", headers=h).json()["attivita"][0]["stato"] == "aperta"
 
 
@@ -243,37 +246,17 @@ def test_migrazione_stato_attivita_esistenti(tmp_path, monkeypatch):
     assert [(a["titolo"], a["stato"]) for a in att.elenco()] == [("Vecchia", "aperta")]
 
 
-def test_presa_in_carico(su):
-    anna, bruno = nuova_persona(su, "Anna", "Gialli", "EL"), nuova_persona(su, "Bruno", "Blu", "EL")
-    cid = in_squadra(su, anna, bruno)
-    a = su.post("/api/attivita", json={"titolo": "Tracce", "appartamento_id": sc(su, cid),
-                                       "persone_ids": [anna["id"], bruno["id"]]}).json()
-    assert a["in_carico"] is None
+def test_presa_in_carico_e_rilascio(su):
+    anna = nuova_persona(su, "Anna", "Gialli", "EL")
+    cid = in_squadra(su, anna)
+    a = su.post("/api/attivita", json={"titolo": "X", "appartamento_id": sc(su, cid), "persone_ids": [anna["id"]]}).json()
     c, _, h = entra_app("anna.gialli", anna["password"])
     url = f"/api/mie-attivita/{a['id']}/stato"
-    r = c.post(url, json={"stato": "presa_in_carico"}, headers=h)
-    assert r.status_code == 200, r.text
-    x = r.json()
-    assert x["stato"] == "presa_in_carico" and x["stato_nome"] == "Presa in carico" and x["in_carico"]["chi"] == "Anna Gialli"
-    # Bruno la vede già presa: non la riprende (stesso stato), non la chiude né la rilascia
-    c2, d2, h2 = entra_app("bruno.blu", bruno["password"])
-    assert d2["attivita"][0]["in_carico"]["chi"] == "Anna Gialli"
-    assert c2.post(url, json={"stato": "presa_in_carico"}, headers=h2).status_code == 409
-    r = c2.post(url, json={"stato": "chiusa"}, headers=h2)
-    assert r.status_code == 403 and "Anna Gialli" in r.json()["detail"]
-    assert c2.post(url, json={"stato": "aperta"}, headers=h2).status_code == 403
-    # rilascia → aperta, nessun incaricato; Bruno la prende e la chiude
-    x = c.post(url, json={"stato": "aperta"}, headers=h).json()
+    x = c.post(url, json={"stato": "presa_in_carico"}, headers=h).json()
+    assert x["stato_nome"] == "Presa in carico" and x["in_carico"]["chi"] == "Anna Gialli"
+    assert c.post(url, json={"stato": "presa_in_carico"}, headers=h).status_code == 409
+    x = c.post(url, json={"stato": "aperta"}, headers=h).json()  # rilascia
     assert x["stato"] == "aperta" and x["in_carico"] is None
-    assert c2.post(url, json={"stato": "presa_in_carico"}, headers=h2).status_code == 200
-    x = c2.post(url, json={"stato": "chiusa"}, headers=h2).json()
-    # chiusa: in_carico non si mostra più
-    assert x["stato"] == "chiusa" and x["in_carico"] is None
-    # il superuser la rimette da verificare: torna a nome di Bruno, che la richiude
-    x = su.post(f"/api/attivita/{a['id']}/stato", json={"stato": "da_verificare"}).json()
-    assert x["in_carico"]["chi"] == "Bruno Blu"
-    assert c.post(url, json={"stato": "chiusa"}, headers=h).status_code == 403
-    assert c2.post(url, json={"stato": "chiusa"}, headers=h2).status_code == 200
 
 
 def test_note_e_storico(su):

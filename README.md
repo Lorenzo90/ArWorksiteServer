@@ -35,7 +35,7 @@ Al primo avvio vengono create Mario Rossi (DL), Luca Bianchi (CC), Giulia Verdi 
 ## Attività
 Le attività si creano dalla **scheda del cantiere** e sono sempre di **un appartamento o di uno spazio comune** (per un'attività di tutta la planimetria si sceglie lo spazio comune). Le attività create prima di questa regola sono andate sull'APP 3 del loro cantiere, o sullo spazio comune se il cantiere non ha un APP 3 e si assegnano **solo alle persone della squadra** di quel cantiere: il server rifiuta (400) chi non ne fa parte. Chi viene tolto dalla squadra perde le attività di quel cantiere. Allegati: **foto**, scansioni 3D `.glb` e altri file (pdf, dxf…), salvati in `data/attivita/<id>/`.
 
-**Stato**: ogni attività è **Aperta** (alla creazione; anche quelle create prima di questa versione), **Presa in carico** (un assegnato ci sta lavorando: si vede *In carico a …*), **Da verificare** o **Chiusa**. Nella scheda del cantiere si cambia dal menu colorato su ogni riga (riaprire chiede il motivo) e si filtra con *Tutte / Aperte / Da verificare / Chiuse*; sotto ogni attività c'è l'ultimo cambio (chi, quando, nota) e **Note e storico (n)**, che apre la cronologia completa (creazione, ogni cambio di stato con la sua nota, note libere) e permette di scrivere una nota senza cambiare stato. Dall'app: chi è assegnato prende in carico, rilascia, segna come fatta (Da verificare) e annulla; il **Direttore dei lavori** della squadra riceve tutte le attività del cantiere e può chiuderle o riaprirle.
+**Stato** (come nell'app): **Aperta** → **Presa in carico** (si vede *In carico a …*) → **Chiusa** (lavoro fatto, con foto e file). **Da verificare** lo mette il Direttore dei lavori o la pagina web per far ricontrollare: chi l'aveva aggiunge i file e la richiude. Nella scheda del cantiere si cambia dal menu colorato su ogni riga (riaprire chiede il motivo) e si filtra per stato. Dall'app chi è assegnato prende in carico, rilascia e chiude, ma non un'attività in carico a un altro; il **Direttore dei lavori** della squadra riceve tutte le attività del cantiere e può mettere qualsiasi stato.
 
 **Dall'app**: la risposta di `POST /api/login` contiene anche `attivita` (quelle assegnate alla persona, più recenti prima). Per aggiornarle: `GET /api/mie-attivita` con `Authorization: Bearer <token>`. Ogni allegato ha `tipo` (`foto`, `scansione3d`, `file`), `sha256` e `url_download`, da scaricare con lo stesso token (ritorna 304 con `If-None-Match` se il file è già aggiornato). Chi non è assegnato all'attività non può scaricarne gli allegati.
 
@@ -48,6 +48,15 @@ Dalla pagina *Cantieri* clic sul nome (o *Apri scheda →*): `http://<IP-del-PC>
 - **Attività** del cantiere, con *+ Nuova attività* (titolo, appartamento facoltativo, descrizione, persone, allegati).
 
 Le piante del cantiere stanno in `data/piante/<nome cantiere>/`.
+
+## Vista del cantiere (come nell'app)
+Dalla scheda del cantiere *Vista del cantiere →* (o dall'elenco dei cantieri *Vista →*): `http://<IP-del-PC>:8000/cantieri/<id>/vista`.
+- **A sinistra** gli appartamenti per planimetria (con lo *Spazio comune*), **al centro** la planimetria con i layer dell'app (rotella = zoom, trascina = sposta, doppio clic = adatta, ≡ = layer), **a destra** il pannello media.
+- Clic su un **locale** → le sue pareti numerate come nel telefono (*Parete 1* in alto a sinistra, in senso orario); clic su una **parete** → i suoi dati; clic di nuovo sul locale → **Soffitto** o **Pavimento**.
+- Il pannello mostra **Foto / Scansioni / File / Attività** del punto scelto, con i conteggi di tutto quello che sta sotto e le cartelle (locali, pareti, cartelle dei file) come nel pannello media dell'app; foto e scansioni si aprono a schermo intero (← → per scorrere), i GLB nel visualizzatore 3D.
+- I dati sono quelli caricati dai telefoni (*Dati raccolti*) e gli allegati delle attività con il riferimento alla parete.
+- Locali e pareti sono ricostruiti dal DXF con lo **stesso calcolo dell'app** (`app/pianta_modello.py`, traduzione di FloorPlanAnalyzer e RoomWallExtractor), quindi i nomi coincidono con le cartelle del telefono. La prima volta il calcolo richiede qualche secondo per appartamento e viene salvato in `data/modelli/`. Serve `numpy` (installato da `avvia_server.bat`); senza funziona lo stesso, più lentamente. I DWG non si leggono sul server: per la vista serve il DXF.
+- In APP 3 di Lungo Avisio ci sono come esempio le foto e le due scansioni di esempio dell'app (autore «Esempio dell'app»).
 
 ## Dal telefono al server
 - **Aggiornamento di un'attività**: `POST /api/mie-attivita/{id}/aggiornamento` (multipart) con foto/file/GLB, `stato`, `nota` e `riferimento` (id app della parete o stanza) in una sola chiamata. Gli allegati portano il nome di chi li ha caricati; nella scheda del cantiere si vedono sotto l'attività.
@@ -85,7 +94,7 @@ Ogni pianta ha `sha256` e `url_download`; ogni appartamento ha `id_app` (= id de
 | POST | `/api/attivita/{id}/allegati` | Caricamento allegati (multipart, campi `file`) — superuser |
 | POST | `/api/attivita/{id}/stato` | Cambia lo stato (`stato` = aperta / presa_in_carico / da_verificare / chiusa, `nota`) — superuser |
 | POST | `/api/attivita/{id}/note` · `/api/mie-attivita/{id}/note` | Nota libera (`testo`) dal superuser / dall'app (assegnato o DL) |
-| POST | `/api/mie-attivita/{id}/stato` | Cambia lo stato dall'app (token): assegnato tra Aperta, Presa in carico e Da verificare, DL qualsiasi |
+| POST | `/api/mie-attivita/{id}/stato` | Cambia lo stato dall'app (token): assegnato: prende in carico, rilascia, chiude; DL qualsiasi |
 | DELETE | `/api/attivita/{id}/allegati/{id_allegato}` | Elimina un allegato — superuser |
 | GET | `/api/attivita/{id}/allegati/{id_allegato}/file` | Scarica un allegato (superuser o persona assegnata; `inline=true` per mostrarlo) |
 | POST | `/api/logout` | Chiude la sessione del token |
@@ -101,6 +110,8 @@ Ogni pianta ha `sha256` e `url_download`; ogni appartamento ha `id_app` (= id de
 | POST | `/api/mie-attivita/{id}/aggiornamento` | Dal telefono: allegati + stato in una chiamata (multipart) |
 | GET | `/api/appartamenti/{id}/raccolta` | Elenco dei dati raccolti (304 con `If-None-Match`) |
 | PUT / GET / DELETE | `/api/appartamenti/{id}/raccolta/<percorso>` | Carica (`X-Sha256`) / scarica / elimina un file raccolto |
+| GET | `/api/piante/{id}/modello` | Planimetria letta come nell'app: layer, segmenti, appartamenti, locali e pareti (202 mentre si prepara) |
+| GET | `/api/appartamenti/{id}/esplora` | Contenuto di un appartamento per locale/parete/soffitto/pavimento, con conteggi e attività |
 | GET | `/api/piante/{id}/file` | Download del file. Con `If-None-Match: "<sha256>"` risponde **304** se il client ha già quella versione |
 
 L'`id` è stabile finché il file non cambia nome/cartella; `sha256` cambia quando cambia il contenuto.

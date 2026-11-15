@@ -166,9 +166,9 @@ def mie_attivita(request: Request, persona: dict = Depends(persona_autenticata))
 @router.post("/mie-attivita/{id_attivita}/stato", response_model=Attivita)
 def cambia_stato(id_attivita: int, dati: StatoIn, request: Request, persona: dict = Depends(persona_autenticata)):
     """Cambia lo stato di un'attività dall'app.
-    - chi è assegnato: `aperta` ↔ `presa_in_carico` (prende in carico / rilascia), `presa_in_carico` → `chiusa`
-      (lavoro fatto), `da_verificare` → `chiusa` (rivista). Se un altro l'ha in carico, solo lui la chiude;
-    - il Direttore dei lavori della squadra del cantiere: qualsiasi passaggio (anche `chiusa` → `da_verificare`).
+    - chi è assegnato: `aperta` → `presa_in_carico` (e indietro), `presa_in_carico` → `chiusa` (fatto),
+      `da_verificare` → `chiusa` (ricontrollata), ma non se l'ha in carico un'altra persona;
+    - il Direttore dei lavori della squadra del cantiere: qualsiasi passaggio (chiude o riapre).
     403 se il passaggio non è permesso, 404 se la persona non vede l'attività, 409 se è già in quello stato."""
     a = _attivita_visibile(id_attivita, persona)
     _controlla_passaggio(a, persona, dati.stato)
@@ -194,12 +194,13 @@ def _controlla_passaggio(a: dict, persona: dict, stato: str) -> None:
         raise HTTPException(status_code=409, detail=f"L'attività è già «{att.STATI[stato]}»")
     if att.e_dl_del_cantiere(a, persona):
         return
+    incaricato = a.get("in_carico")
+    if incaricato and incaricato.get("persona_id") not in (None, persona["id"]):
+        raise HTTPException(status_code=403, detail=f"L'attività è in carico a {incaricato['chi']}")
     if (a["stato"], stato) not in att.PASSAGGI_ASSEGNATARIO:
         raise HTTPException(status_code=403,
-                            detail="Chi è assegnato può prendere in carico e chiudere; il resto lo fa il Direttore dei lavori")
-    incaricato = a.get("in_carico")
-    if incaricato and incaricato["persona_id"] != persona["id"]:
-        raise HTTPException(status_code=403, detail=f"L'attività è in carico a {incaricato['chi']}")
+                            detail="Passaggio non permesso: chi è assegnato prende in carico e chiude; "
+                                   "riaprire o mettere «Da verificare» spetta al Direttore dei lavori")
 
 
 class EsitoAggiornamento(BaseModel):
