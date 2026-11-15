@@ -386,6 +386,18 @@ def nuova_password(id_persona: int) -> str | None:
     return password
 
 
+def imposta_password(username: str, password: str) -> dict | None:
+    """Imposta una password scelta (es. «1234» per la demo) e chiude le sessioni aperte di quella persona.
+    None se l'utente non esiste."""
+    with connessione() as con:
+        r = con.execute("SELECT id FROM persone WHERE username = ? COLLATE NOCASE", (username.strip(),)).fetchone()
+        if not r:
+            return None
+        con.execute("UPDATE persone SET password_hash = ? WHERE id = ?", (credenziali.hash_password(password), r["id"]))
+        con.execute("DELETE FROM sessioni WHERE persona_id = ?", (r["id"],))
+    return leggi_persona(r["id"])
+
+
 def elimina_persona(id_persona: int) -> bool:
     """Elimina la persona; esce anche dalle squadre dei cantieri e le sue sessioni vengono chiuse."""
     with connessione() as con:

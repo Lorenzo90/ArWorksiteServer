@@ -11,6 +11,7 @@ Riferimento completo di pagine, regole e API: [`RIFERIMENTO.md`](RIFERIMENTO.md)
 ### 1. Accesso
 - **App**: `POST /api/login` con utente (`nome.cognome`) e password → token valido 30 giorni (`Authorization: Bearer <token>`). Password salvate solo come impronta PBKDF2. `POST /api/logout` chiude la sessione.
 - **Pagine web**: solo l'utente **superuser** (`/login`, cookie `HttpOnly` di 12 ore). La password iniziale è in `data/credenziali_iniziali.txt`, creata al primo avvio; si cambia con `imposta_password_superuser.bat` / `.py`.
+- **Password di una persona dell'app** scelta da te (es. `1234` per la demo): `imposta_password_persona.bat efrem.franceschini 1234` (oppure doppio clic: chiede utente e password). Le sessioni aperte di quella persona si chiudono; non serve riavviare.
 - Facoltativa: `ARWS_API_KEY` per l'accesso tecnico alle API con l'intestazione `X-Api-Key`.
 
 ### 2. Cantieri, persone, squadre
